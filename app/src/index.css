@@ -301,6 +301,16 @@ html[data-theme="dark"] {
     border-color: var(--sand-line);
     color: var(--sand-ink);
   }
+  /* Кнопка внутри строки списка: в покое прозрачная, под курсором строки проявляется плиткой. */
+  .rb.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-3);
+  }
+  .row:hover .rb.ghost {
+    background: var(--tile-2);
+    border-color: var(--line-2);
+  }
   .rb:disabled {
     color: var(--ink-3);
     opacity: 0.55;
@@ -343,6 +353,12 @@ html[data-theme="dark"] {
     border-color: var(--sand-line);
     color: var(--sand-ink);
   }
+  /* Туман — служебная отметка без оценки: «язык определён», направление перевода в строке списка. */
+  .badge.mist {
+    background: var(--mist-soft);
+    border-color: transparent;
+    color: var(--ink-2);
+  }
   .badge-dot {
     width: 5px;
     height: 5px;
@@ -352,6 +368,9 @@ html[data-theme="dark"] {
   }
   .badge.sand .badge-dot {
     background: currentColor;
+  }
+  .badge.mist .badge-dot {
+    background: var(--mist);
   }
 
   /* Значение в словаре, тег в списке. */
@@ -412,7 +431,9 @@ html[data-theme="dark"] {
   .field::placeholder {
     color: var(--ink-3);
   }
-  .field:focus {
+  /* focus-within — для поля с иконкой: рамка на оправе, фокус на вложенном input. */
+  .field:focus,
+  .field:focus-within {
     border-color: var(--water-line);
     box-shadow: 0 0 0 3px var(--water-soft);
   }
@@ -533,12 +554,17 @@ html[data-theme="dark"] {
     color: var(--ink-2);
     transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
   }
-  .swap:hover {
+  .swap:hover:not(:disabled) {
     background: var(--tile);
     color: var(--ink);
   }
-  .swap:active {
+  .swap:active:not(:disabled) {
     transform: scale(0.97);
+  }
+  /* Менять местами нечего, пока нет перевода. */
+  .swap:disabled {
+    color: var(--ink-3);
+    opacity: 0.55;
   }
 
   .row {
