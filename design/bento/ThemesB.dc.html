@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#E7ECEE; --bg-2:#DCE4E7; --card:#F8FAFA; --tile:#EEF2F3; --tile-2:#E4EAEC;
+      --line:rgba(23,37,42,0.08); --line-2:rgba(23,37,42,0.055);
+      --ink:#1B252A; --ink-2:#55666C; --ink-3:#8798A0;
+      --water:#2F6E7C; --water-deep:#245863; --water-soft:rgba(47,110,124,0.10); --water-line:rgba(47,110,124,0.26);
+      --stone:#C3D0D5; --mist:#93AAB5; --mist-soft:rgba(147,170,181,0.22);
+      --sand:#D9C9A9; --sand-ink:#8A6A3A; --sand-soft:rgba(176,138,74,0.16); --sand-line:rgba(176,138,74,0.34);
+      --ok:#2F6B52; --err:#A63B2C; --warn:#8A6A22;
+      --on-water:#F8FAFA;
+      --sh-card:0 8px 24px rgba(24,42,50,0.06);
+      --sh-pop:0 18px 44px rgba(24,42,50,0.16), 0 3px 10px rgba(24,42,50,0.07);
+      --sh-win:0 24px 60px rgba(24,42,50,0.16);
+      --sh-key:0 1px 0 rgba(23,37,42,0.16), 0 1px 2px rgba(24,42,50,0.10);
+      --spot:radial-gradient(52% 40% at 2% 0%, rgba(96,130,142,0.18), rgba(96,130,142,0) 66%), radial-gradient(44% 36% at 100% 100%, rgba(176,138,74,0.12), rgba(176,138,74,0) 70%);
+    }
+    body{margin:0;font-family:'Onest','Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+    a{color:var(--water);} a:hover{color:var(--water-deep);}
+    .ic{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block;flex-shrink:0;}
+    .cap{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-3);}
+    .sub{font-size:11px;color:var(--ink-3);}
+    .ell{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .win{width:960px;height:640px;box-sizing:border-box;border-radius:18px;overflow:hidden;box-shadow:var(--sh-win);border:1px solid var(--line);display:flex;flex-direction:column;background-color:var(--bg);background-image:var(--spot);}
+    .panel{border-radius:24px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);}
+    .rb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);}
+    .rb28{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+    .pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .pill-w{display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;background:var(--water);color:var(--on-water);font-size:13px;font-weight:600;white-space:nowrap;}
+    .pill-a{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--water-soft);border:1px solid var(--water-line);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:12px;color:var(--ink-2);white-space:nowrap;}
+    .key{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 9px;border-radius:8px;background:var(--tile);border:1px solid var(--line);box-shadow:var(--sh-key);font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .plan{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--sand-soft);border:1px solid var(--sand-line);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--sand-ink);white-space:nowrap;}
+    .sk{height:12px;border-radius:6px;background:var(--tile-2);}
+  </style>
+</helmet>
+
+<div style="width:1120px;height:590px;box-sizing:border-box;padding:34px 40px 40px 40px;color:var(--ink);background:#D3DCE0;">
+
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+    <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;">Тема «Туман и вода» — светлая и тёмная</span>
+    <span class="sub">одна разметка, разные значения :root; переключение мгновенное, как сейчас в applyTheme</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px;">
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <span style="font-size:17px;font-weight:600;letter-spacing:-0.02em;">Светлая</span>
+        <span class="sub">фон #E7ECEE, карточка #F8FAFA, вода #2F6E7C</span>
+      </div>
+      <div style="padding:26px;border-radius:24px;background-color:#DCE4E7;background-image:radial-gradient(58% 44% at 4% 0%, rgba(96,130,142,0.20), rgba(96,130,142,0) 68%), radial-gradient(48% 38% at 100% 100%, rgba(176,138,74,0.14), rgba(176,138,74,0) 70%);display:flex;flex-direction:column;gap:20px;">
+        <div style="width:430px;box-sizing:border-box;padding:14px;border-radius:26px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-pop);display:flex;flex-direction:column;gap:13px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:999px;background:var(--tile-2);border:1px solid var(--line-2);">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--water);"></span>
+            <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:var(--ink-2);">EN</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" class="ic" style="color:var(--ink-3);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg>
+            <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:var(--water);">RU</span>
+          </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:11px;font-weight:600;color:var(--ink-2);">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--ok);"></span>Google
+          </div>
+            <div style="flex-grow:1;"></div>
+            <div style="display:flex;gap:6px;"><div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M6 2.5h4l-.5 4 2 1.5V9H4.5V8l2-1.5z"></path><path d="M8 9v4.5"></path></svg></div><div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M9.5 2.5h4v4"></path><path d="M13.5 2.5L9 7"></path><path d="M6.5 13.5h-4v-4"></path><path d="M2.5 13.5L7 9"></path></svg></div><div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div></div>
+          </div>
+          <div style="padding:0 4px;font-size:21px;line-height:1.5;letter-spacing:-0.005em;color:var(--ink);text-wrap:pretty;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки.</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="pill-w"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div>
+            <div class="pill" style="height:36px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-2);"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg>Озвучить</div>
+            <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+            <div style="flex-grow:1;"></div>
+            <div style="display:flex;align-items:center;gap:5px;padding-right:6px;font-size:12px;color:var(--ink-3);">Оригинал<svg width="12" height="12" viewBox="0 0 16 16" class="ic" style="transform:translateY(1px);"><path d="M3 4.5l3 3 3-3"></path></svg></div>
+          </div>
+        </div>
+        <div style="width:430px;box-sizing:border-box;display:flex;gap:10px;">
+          <div class="panel" style="flex-grow:1;padding:14px;display:flex;flex-direction:column;gap:8px;">
+            <span class="cap">Панель окна</span>
+            <span style="font-size:13px;color:var(--ink-2);">Карточка на тон светлее фона, граница 1 px на 8 % чернил.</span>
+          </div>
+          <div style="width:120px;flex-shrink:0;border-radius:24px;background:var(--tile-2);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;">
+            <div style="display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line-2);">
+              <div style="padding:6px 12px;border-radius:999px;background:var(--tile-2);box-shadow:var(--sh-card);font-size:12px;font-weight:600;">A</div>
+              <div style="padding:6px 12px;border-radius:999px;font-size:12px;color:var(--ink-2);">Б</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span style="font-size:13px;line-height:1.5;color:var(--ink-2);">Холодная база не спорит с окнами Windows и редакторами; вода собирает на себя единственное главное действие.</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <span style="font-size:17px;font-weight:600;letter-spacing:-0.02em;">Тёмная</span>
+        <span class="sub">фон #121A1E, карточка #1A2429, вода #63B6C6</span>
+      </div>
+      <div style="padding:26px;border-radius:24px;background-color:#0D1417;background-image:radial-gradient(58% 44% at 4% 0%, rgba(99,182,198,0.12), rgba(99,182,198,0) 68%), radial-gradient(48% 38% at 100% 100%, rgba(201,174,126,0.07), rgba(201,174,126,0) 70%);display:flex;flex-direction:column;gap:20px;color:#E4EDF0;">
+        <div style="width:430px;box-sizing:border-box;padding:14px;border-radius:26px;background:#1A2429;border:1px solid rgba(226,238,242,0.09);box-shadow:0 18px 44px rgba(0,0,0,0.50), 0 3px 10px rgba(0,0,0,0.34);display:flex;flex-direction:column;gap:13px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:999px;background:#2A373E;border:1px solid rgba(226,238,242,0.06);">
+              <span style="width:7px;height:7px;border-radius:50%;background:#63B6C6;"></span>
+              <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:#9BADB5;">EN</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" class="ic" style="color:#6F818A;"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg>
+              <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:#63B6C6;">RU</span>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:#212D33;border:1px solid rgba(226,238,242,0.06);font-size:11px;font-weight:600;color:#9BADB5;">
+              <span style="width:5px;height:5px;border-radius:50%;background:#7FBFA0;"></span>Google
+            </div>
+            <div style="flex-grow:1;"></div>
+            <div style="display:flex;gap:6px;">
+              <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#212D33;border:1px solid rgba(226,238,242,0.06);color:#9BADB5;"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M6 2.5h4l-.5 4 2 1.5V9H4.5V8l2-1.5z"></path><path d="M8 9v4.5"></path></svg></div>
+              <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#212D33;border:1px solid rgba(226,238,242,0.06);color:#9BADB5;"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+            </div>
+          </div>
+          <div style="padding:0 4px;font-size:21px;line-height:1.5;letter-spacing:-0.005em;text-wrap:pretty;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки.</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;background:#63B6C6;color:#0E181C;font-size:13px;font-weight:600;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div>
+            <div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 15px;border-radius:999px;background:#212D33;border:1px solid rgba(226,238,242,0.06);font-size:13px;font-weight:500;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:#9BADB5;"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg>Озвучить</div>
+            <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(201,174,126,0.16);border:1px solid rgba(201,174,126,0.34);color:#C9AE7E;"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+            <div style="flex-grow:1;"></div>
+            <div style="display:flex;align-items:center;gap:5px;padding-right:6px;font-size:12px;color:#6F818A;">Оригинал<svg width="12" height="12" viewBox="0 0 16 16" class="ic" style="transform:translateY(1px);"><path d="M3 4.5l3 3 3-3"></path></svg></div>
+          </div>
+        </div>
+        <div style="width:430px;box-sizing:border-box;display:flex;gap:10px;">
+          <div style="flex-grow:1;padding:14px;border-radius:24px;background:#1A2429;border:1px solid rgba(226,238,242,0.09);box-shadow:0 8px 24px rgba(0,0,0,0.32);display:flex;flex-direction:column;gap:8px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:#6F818A;">Панель окна</span>
+            <span style="font-size:13px;color:#9BADB5;">Та же логика: карточка светлее фона, тень только держит слой.</span>
+          </div>
+          <div style="width:120px;flex-shrink:0;border-radius:24px;background:#212D33;border:1px solid rgba(226,238,242,0.06);display:flex;align-items:center;justify-content:center;">
+            <div style="display:flex;gap:2px;padding:4px;border-radius:999px;background:#0D1417;border:1px solid rgba(226,238,242,0.06);">
+              <div style="padding:6px 12px;border-radius:999px;background:#2A373E;box-shadow:0 8px 24px rgba(0,0,0,0.32);font-size:12px;font-weight:600;">A</div>
+              <div style="padding:6px 12px;border-radius:999px;font-size:12px;color:#9BADB5;">Б</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span style="font-size:13px;line-height:1.5;color:var(--ink-2);">Тёмная выведена из светлой: те же роли, инвертированная тональность; охра осталась только на избранном и на резервном движке.</span>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#121A1E; --bg-2:#0D1417; --card:#1A2429; --tile:#212D33; --tile-2:#2A373E;
+      --line:rgba(226,238,242,0.09); --line-2:rgba(226,238,242,0.06);
+      --ink:#E4EDF0; --ink-2:#9BADB5; --ink-3:#6F818A;
+      --water:#63B6C6; --water-deep:#7FCBDA; --water-soft:rgba(99,182,198,0.14); --water-line:rgba(99,182,198,0.34);
+      --stone:#4A5B63; --mist:#7C99A5; --mist-soft:rgba(124,153,165,0.20);
+      --sand:#C9AE7E; --sand-ink:#C9AE7E; --sand-soft:rgba(201,174,126,0.16); --sand-line:rgba(201,174,126,0.34);
+      --ok:#7FBFA0; --err:#E8897E; --warn:#D7B573;
+      --on-water:#0E181C;
+      --sh-card:0 8px 24px rgba(0,0,0,0.32);
+      --sh-pop:0 18px 44px rgba(0,0,0,0.50), 0 3px 10px rgba(0,0,0,0.34);
+      --sh-win:0 24px 60px rgba(0,0,0,0.52);
+      --sh-key:0 1px 0 rgba(0,0,0,0.40), 0 1px 2px rgba(0,0,0,0.30);
+      --spot:radial-gradient(52% 40% at 2% 0%, rgba(99,182,198,0.10), rgba(99,182,198,0) 66%), radial-gradient(44% 36% at 100% 100%, rgba(201,174,126,0.06), rgba(201,174,126,0) 70%);
+    }
+    body{margin:0;font-family:'Onest','Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+    a{color:var(--water);} a:hover{color:var(--water-deep);}
+    .ic{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block;flex-shrink:0;}
+    .cap{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-3);}
+    .sub{font-size:11px;color:var(--ink-3);}
+    .ell{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .win{width:960px;height:640px;box-sizing:border-box;border-radius:18px;overflow:hidden;box-shadow:var(--sh-win);border:1px solid var(--line);display:flex;flex-direction:column;background-color:var(--bg);background-image:var(--spot);}
+    .panel{border-radius:24px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);}
+    .rb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);}
+    .rb28{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+    .pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .pill-w{display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;background:var(--water);color:var(--on-water);font-size:13px;font-weight:600;white-space:nowrap;}
+    .pill-a{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--water-soft);border:1px solid var(--water-line);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:12px;color:var(--ink-2);white-space:nowrap;}
+    .key{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 9px;border-radius:8px;background:var(--tile);border:1px solid var(--line);box-shadow:var(--sh-key);font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .plan{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--sand-soft);border:1px solid var(--sand-line);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--sand-ink);white-space:nowrap;}
+    .sk{height:12px;border-radius:6px;background:var(--tile-2);}
+  </style>
+</helmet>
+
+<div style="width:1040px;height:740px;box-sizing:border-box;padding:34px 40px 40px 40px;color:var(--ink);background:var(--bg-2);">
+
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+    <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;">Окно · Перевод · тёмная</span>
+    <span class="sub">та же сетка, фон #121A1E, панели #1A2429 — глубина тональностью, не тенью</span>
+  </div>
+
+  <div class="win">
+
+    <div style="display:flex;align-items:center;height:56px;flex-shrink:0;padding:0 14px 0 20px;">
+      <div style="display:flex;align-items:center;gap:10px;width:210px;">
+        <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--water);color:var(--on-water);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="stroke-width:1.7;"><path d="M2.5 4h7"></path><path d="M6 2.5V4"></path><path d="M8 4c-.5 3-2.5 5.5-5 6.5"></path><path d="M4.5 6c.8 2 2.5 3.5 4.5 4.5"></path><path d="M9 14l2.5-6 2.5 6"></path><path d="M10 12h3"></path></svg></div>
+        <span style="font-size:14px;font-weight:600;letter-spacing:-0.015em;">UTranslate</span>
+      </div>
+      <div style="flex-grow:1;display:flex;justify-content:center;">
+        <div style="display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line-2);">
+          <div style="padding:7px 18px;border-radius:999px;background:var(--tile-2);box-shadow:var(--sh-card);font-size:13px;font-weight:600;color:var(--ink);">Перевод</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">История</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Избранное</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Настройки</div>
+        </div>
+      </div>
+      <div style="width:210px;display:flex;justify-content:flex-end;gap:4px;">
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3 8h10"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3.5 3.5h9v9h-9z"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;padding:0 20px 20px 20px;flex-grow:1;min-height:0;">
+
+      <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;flex-grow:1;min-height:0;">
+
+        <div class="panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="pill" style="padding-left:12px;">
+              <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:var(--mist);">EN</span>
+              <span>Английский</span>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;color:var(--ink-2);">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--mist);"></span>определён
+            </div>
+            <div style="flex-grow:1;"></div>
+            <div class="rb" style="width:32px;height:32px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+          </div>
+          <div style="flex-grow:1;padding:2px 6px;font-size:16px;line-height:1.6;color:var(--ink-2);text-wrap:pretty;">The trick is to lean on what the system already ships: the webview, the clipboard, the speech voices — and only reach for the network when a sentence actually needs translating.</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="padding-left:6px;font-size:12px;color:var(--ink-3);">177 / 5000</span>
+            <span class="sub" style="opacity:0.8;">Ctrl+Alt+T — перевести выделенное</span>
+            <div style="flex-grow:1;"></div>
+            <div class="rb" style="width:32px;height:32px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg></div>
+          </div>
+        </div>
+
+        <div class="panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="pill-a" style="padding-left:12px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:var(--water);"></span>
+              <span style="font-size:12px;font-weight:600;letter-spacing:0.07em;color:var(--water);">RU</span>
+              <span>Русский</span>
+              <svg width="12" height="12" viewBox="0 0 16 16" class="ic" style="color:var(--ink-3);"><path d="M3 4.5l3 3 3-3"></path></svg>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:11px;font-weight:600;color:var(--ink-2);">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--ok);"></span>Google
+          </div>
+            <div style="flex-grow:1;"></div>
+          </div>
+          <div style="flex-grow:1;padding:2px 6px;font-size:20px;line-height:1.55;letter-spacing:-0.005em;text-wrap:pretty;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки — и обращаться к сети только тогда, когда предложение действительно нужно перевести.</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="pill-w"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div>
+            <div class="pill" style="height:36px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-2);"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg>Озвучить</div>
+            <div style="flex-grow:1;"></div>
+            <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+          </div>
+        </div>
+
+        <div style="position:absolute;left:50%;top:14px;transform:translateX(-50%);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);color:var(--ink-2);"><svg width="17" height="17" viewBox="0 0 16 16" class="ic"><path d="M3 5.5h9"></path><path d="M9.5 3l2.5 2.5L9.5 8"></path><path d="M13 10.5H4"></path><path d="M6.5 8L4 10.5 6.5 13"></path></svg></div>
+      </div>
+
+      <div class="panel" style="display:flex;align-items:center;gap:10px;flex-shrink:0;height:60px;padding:0 16px;border-radius:20px;">
+        <div class="pill-w" style="height:38px;padding:0 18px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M2.5 4h7"></path><path d="M6 2.5V4"></path><path d="M8 4c-.5 3-2.5 5.5-5 6.5"></path><path d="M4.5 6c.8 2 2.5 3.5 4.5 4.5"></path><path d="M9 14l2.5-6 2.5 6"></path><path d="M10 12h3"></path></svg>Перевести</div>
+        <span class="key">Ctrl</span><span style="font-size:12px;color:var(--ink-3);">+</span><span class="key">Enter</span>
+        <span class="plan">план</span>
+        <div style="flex-grow:1;"></div>
+        <span class="cap">Цепочка</span>
+        <div style="display:flex;gap:6px;">
+          <div class="pill-a" style="height:32px;padding:0 13px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--water);"></span>Google</div>
+          <div class="pill" style="height:32px;padding:0 13px;color:var(--ink-2);">Bing</div>
+          <div class="pill" style="height:32px;padding:0 13px;color:var(--ink-2);">MyMemory</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

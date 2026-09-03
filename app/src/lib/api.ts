@@ -69,15 +69,22 @@ export const LANGS: Record<string, string> = {
 };
 export const langName = (code: string | null | undefined) => (code ? LANGS[code] ?? code.toUpperCase() : "Авто");
 
+/** Части речи из словаря Google приходят по-английски — сокращаем по-русски. */
+const POS: Record<string, string> = {
+  noun: "сущ.", verb: "глаг.", adjective: "прил.", adverb: "нареч.", pronoun: "мест.",
+  preposition: "предл.", conjunction: "союз", interjection: "межд.", numeral: "числ.",
+  particle: "част.", abbreviation: "сокр.", exclamation: "воскл.",
+};
+export const posName = (pos: string) => POS[pos.toLowerCase()] ?? pos;
+
 export const ENGINE_NAMES: Record<string, string> = { google: "Google", bing: "Bing", mymemory: "MyMemory" };
 export const engineName = (id: string) => ENGINE_NAMES[id] ?? id;
 
-/** Подпись движка с причиной fallback: «Bing · Google недоступен». */
+/** Подпись движка: «Google» или «Bing вместо Google», если цепочка ушла на резервный. */
 export function engineLabel(t: Translation) {
   const base = engineName(t.engine);
   if (!t.fallbackFrom) return base;
-  const failed = t.fallbackFrom.split(":")[0];
-  return `${base} · ${engineName(failed)} недоступен`;
+  return `${base} вместо ${engineName(t.fallbackFrom.split(":")[0])}`;
 }
 
 export function speak(text: string, lang: string) {
@@ -87,8 +94,30 @@ export function speak(text: string, lang: string) {
   speechSynthesis.speak(u);
 }
 
+/** Ошибки перевода: что случилось и что делать. Первое совпадение выигрывает. */
+const ERRORS: { re: RegExp; title: string; hint: string }[] = [
+  {
+    re: /error sending request|dns|connect|timed out|timeout/i,
+    title: "Нет соединения",
+    hint: "Ни один движок не ответил. Проверьте сеть или VPN.",
+  },
+  {
+    re: /429|too many requests/i,
+    title: "Движок ограничил запросы",
+    hint: "Подождите минуту или поменяйте порядок движков в настройках.",
+  },
+];
+
+const errorRaw = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e));
+
+/** Заголовок ошибки: короткий, если причина знакома, иначе сообщение как есть. */
 export function errorText(e: unknown) {
-  const s = typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e);
-  if (/error sending request|dns|connect|timed out|timeout/i.test(s)) return "Нет соединения";
-  return s;
+  const s = errorRaw(e);
+  return ERRORS.find((x) => x.re.test(s))?.title ?? s;
+}
+
+/** Строка «что делать» под заголовком. */
+export function errorHint(e: unknown) {
+  const s = errorRaw(e);
+  return ERRORS.find((x) => x.re.test(s))?.hint ?? "Попробуйте ещё раз или откройте окно и смените движок.";
 }

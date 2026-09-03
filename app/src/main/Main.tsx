@@ -31,10 +31,10 @@ export default function Main() {
   }, []);
 
   return (
-    <div className="mesh flex h-full flex-col">
+    <div className="spot flex h-full flex-col">
       <div data-tauri-drag-region className="flex h-14 shrink-0 items-center pl-5 pr-3.5">
         <div className="pointer-events-none flex w-[220px] items-center gap-2.5">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full text-[#1b1538]" style={{ background: "radial-gradient(circle at 30% 25%, #d9cfff, #b9a7ff 45%, #7c68d8)", boxShadow: "0 0 16px rgba(185,167,255,0.5)" }}>
+          <div className="flex h-6 w-6 items-center justify-center rounded-full text-on-water" style={{ background: "radial-gradient(circle at 30% 25%, var(--mist), var(--water) 55%, var(--water-deep))" }}>
             <Icon name="translate" size={14} />
           </div>
           <span className="text-sm font-medium tracking-tight">UTranslate</span>
@@ -151,7 +151,7 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
           <div className="relative flex items-center gap-2">
             <button className="pill pl-2.5!" onClick={() => { if (settings) setTarget(targetLabel === settings.primaryLang ? settings.secondaryLang : settings.primaryLang); }} title="Сменить целевой язык">
               <span className={`dot ${status === "loading" ? "pulse" : ""}`} />
-              <span className="tracking-wide text-accent">{targetLabel.toUpperCase()}</span>
+              <span className="tracking-wide text-water">{targetLabel.toUpperCase()}</span>
               <span>{langName(targetLabel)}</span>
               <Icon name="chevron" size={12} className="opacity-50" />
             </button>
@@ -202,7 +202,7 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
               <Icon name={copied ? "check" : "copy"} size={15} className="opacity-70" />{copied ? "Скопировано" : "Копировать"}
             </button>
             <button className="pill pl-2.5!" disabled={!result} onClick={() => result && speak(result.text, result.target)}><Icon name="speaker" size={15} className="opacity-70" />Озвучить</button>
-            <button className={`rb ${favorite ? "active" : ""}`} disabled={!result?.historyId} onClick={toggleFavorite} title="В избранное"><Icon name="star" /></button>
+            <button className={`rb ${favorite ? "warm" : ""}`} disabled={!result?.historyId} onClick={toggleFavorite} title="В избранное"><Icon name="star" /></button>
           </div>
         </div>
 
@@ -296,7 +296,7 @@ function History({ favorites, onPick }: { favorites: boolean; onPick: (text: str
                   <span className="shrink-0 rounded-full bg-ink/7 px-2 py-0.5 text-[11px] font-medium tracking-wider text-ink/80">{e.sourceLang.toUpperCase()} → {e.targetLang.toUpperCase()}</span>
                   <span className="w-[38%] shrink-0 truncate text-[13px]" title={e.sourceText}>{e.sourceText}</span>
                   <span className="min-w-0 flex-1 truncate text-[13px] text-ink/50" title={e.resultText}>{e.resultText}</span>
-                  <button className={`rb h-7! w-7! ${e.isFavorite ? "active" : ""}`} onClick={() => toggle(e)} title="В избранное"><Icon name="star" size={14} /></button>
+                  <button className={`rb h-7! w-7! ${e.isFavorite ? "warm" : ""}`} onClick={() => toggle(e)} title="В избранное"><Icon name="star" size={14} /></button>
                   <button className="rb h-7! w-7!" onClick={() => api.copy(e.resultText)} title="Копировать перевод"><Icon name="copy" size={14} /></button>
                   <button className="rb h-7! w-7!" onClick={() => remove(e)} title="Удалить"><Icon name="trash" size={14} /></button>
                 </div>
@@ -322,8 +322,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`toggle-track relative h-6 w-11 rounded-full ${on ? "bg-accent" : "bg-ink/15"}`}>
-      <span className={`toggle-thumb absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow ${on ? "on" : ""}`} />
+    <button onClick={onClick} className={`toggle-track ${on ? "on" : ""}`}>
+      <span className={`toggle-thumb ${on ? "on" : ""}`} />
     </button>
   );
 }
@@ -492,7 +492,7 @@ function About() {
               {pct === null ? "Загрузка" : `Загрузка ${pct}%`}
               {pct === null
                 ? <span className="sk absolute bottom-0 left-0 h-1 w-full rounded-none" />
-                : <span className="absolute bottom-0 left-0 h-1 bg-accent" style={{ width: `${pct}%`, transition: "width 150ms linear" }} />}
+                : <span className="absolute bottom-0 left-0 h-1 bg-water" style={{ width: `${pct}%`, transition: "width 150ms linear" }} />}
             </span>
           )}
           {phase === "installing" && <span className="pill"><span className="dot pulse" />Перезапуск…</span>}

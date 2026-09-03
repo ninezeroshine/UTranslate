@@ -1,0 +1,350 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#E7ECEE; --bg-2:#DCE4E7; --card:#F8FAFA; --tile:#EEF2F3; --tile-2:#E4EAEC;
+      --line:rgba(23,37,42,0.08); --line-2:rgba(23,37,42,0.055);
+      --ink:#1B252A; --ink-2:#55666C; --ink-3:#8798A0;
+      --water:#2F6E7C; --water-deep:#245863; --water-soft:rgba(47,110,124,0.10); --water-line:rgba(47,110,124,0.26);
+      --stone:#C3D0D5; --mist:#93AAB5; --mist-soft:rgba(147,170,181,0.22);
+      --sand:#D9C9A9; --sand-ink:#8A6A3A; --sand-soft:rgba(176,138,74,0.16); --sand-line:rgba(176,138,74,0.34);
+      --ok:#2F6B52; --err:#A63B2C; --warn:#8A6A22;
+      --on-water:#F8FAFA;
+      --sh-card:0 8px 24px rgba(24,42,50,0.06);
+      --sh-pop:0 18px 44px rgba(24,42,50,0.16), 0 3px 10px rgba(24,42,50,0.07);
+      --sh-win:0 24px 60px rgba(24,42,50,0.16);
+      --sh-key:0 1px 0 rgba(23,37,42,0.16), 0 1px 2px rgba(24,42,50,0.10);
+      --spot:radial-gradient(52% 40% at 2% 0%, rgba(96,130,142,0.18), rgba(96,130,142,0) 66%), radial-gradient(44% 36% at 100% 100%, rgba(176,138,74,0.12), rgba(176,138,74,0) 70%);
+    }
+    body{margin:0;font-family:'Onest','Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+    a{color:var(--water);} a:hover{color:var(--water-deep);}
+    .ic{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block;flex-shrink:0;}
+    .cap{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-3);}
+    .sub{font-size:11px;color:var(--ink-3);}
+    .ell{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .win{width:960px;height:640px;box-sizing:border-box;border-radius:18px;overflow:hidden;box-shadow:var(--sh-win);border:1px solid var(--line);display:flex;flex-direction:column;background-color:var(--bg);background-image:var(--spot);}
+    .panel{border-radius:24px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);}
+    .rb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);}
+    .rb28{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+    .pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .pill-w{display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;background:var(--water);color:var(--on-water);font-size:13px;font-weight:600;white-space:nowrap;}
+    .pill-a{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--water-soft);border:1px solid var(--water-line);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:12px;color:var(--ink-2);white-space:nowrap;}
+    .key{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 9px;border-radius:8px;background:var(--tile);border:1px solid var(--line);box-shadow:var(--sh-key);font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .plan{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--sand-soft);border:1px solid var(--sand-line);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--sand-ink);white-space:nowrap;}
+    .sk{height:12px;border-radius:6px;background:var(--tile-2);}
+  </style>
+</helmet>
+
+<div style="width:2160px;height:1060px;box-sizing:border-box;padding:34px 40px 40px 40px;color:var(--ink);background:var(--bg-2);">
+
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+    <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;">Окно · История и Избранное</span>
+    <span class="sub">группы по дням, действия по наведению, звезда в двух состояниях</span>
+  </div>
+
+  <div style="display:flex;gap:80px;">
+    <div class="win">
+
+    <div style="display:flex;align-items:center;height:56px;flex-shrink:0;padding:0 14px 0 20px;">
+      <div style="display:flex;align-items:center;gap:10px;width:210px;">
+        <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--water);color:var(--on-water);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="stroke-width:1.7;"><path d="M2.5 4h7"></path><path d="M6 2.5V4"></path><path d="M8 4c-.5 3-2.5 5.5-5 6.5"></path><path d="M4.5 6c.8 2 2.5 3.5 4.5 4.5"></path><path d="M9 14l2.5-6 2.5 6"></path><path d="M10 12h3"></path></svg></div>
+        <span style="font-size:14px;font-weight:600;letter-spacing:-0.015em;">UTranslate</span>
+      </div>
+      <div style="flex-grow:1;display:flex;justify-content:center;">
+        <div style="display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line-2);">
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Перевод</div>
+          <div style="padding:7px 18px;border-radius:999px;background:var(--tile-2);box-shadow:var(--sh-card);font-size:13px;font-weight:600;color:var(--ink);">История</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Избранное</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Настройки</div>
+        </div>
+      </div>
+      <div style="width:210px;display:flex;justify-content:flex-end;gap:4px;">
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3 8h10"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3.5 3.5h9v9h-9z"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+      </div>
+    </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;padding:0 20px 20px 20px;flex-grow:1;min-height:0;">
+        <div class="panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;flex-grow:1;min-height:0;">
+
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:9px;flex-grow:1;height:36px;padding:0 14px;border-radius:12px;background:var(--tile);border:1px solid var(--line-2);">
+              <svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-3);"><path d="M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"></path><path d="M10.5 10.5L14 14"></path></svg>
+              <span style="font-size:13px;color:var(--ink-3);">Поиск по тексту и переводу</span>
+            </div>
+            <div class="pill" style="height:36px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-2);"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg>Очистить</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:1px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px 4px 12px;">
+              <span class="cap">Сегодня</span>
+              <div style="flex-grow:1;height:1px;background:var(--line);"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;background:var(--tile);">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">14:32</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">The trick is to lean on what the system already ships</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Хитрость в том, чтобы опираться на то, что система уже даёт</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink-2);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink-2);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">14:05</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">draft</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">черновик</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">11:20</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">RU → EN</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">Попап появляется быстрее, чем успевает загрузиться браузер.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">The popup appears faster than a browser can boot.</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px 4px 12px;">
+              <span class="cap">Вчера</span>
+              <div style="flex-grow:1;height:1px;background:var(--line);"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">19:48</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">DE → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">Die Zwischenablage muss unberührt zurückgegeben werden.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Буфер обмена должен быть возвращён нетронутым.</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">12:47</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">resilient</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">устойчивый</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px 4px 12px;">
+              <span class="cap">Раньше</span>
+              <div style="flex-grow:1;height:1px;background:var(--line);"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">2 сент</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">FR → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">Le presse-papiers est restitué intact.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Буфер обмена возвращается нетронутым.</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">1 сент</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">The popup is created once and simply shown.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Окно попапа создаётся один раз и просто показывается.</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+          </div>
+
+          <div style="flex-grow:1;"></div>
+          <span style="padding-left:12px;font-size:12px;color:var(--ink-3);">Двойной клик по строке открывает текст во вкладке «Перевод». Действия появляются под курсором.</span>
+        </div>
+      </div>
+    </div>
+    <div class="win">
+
+    <div style="display:flex;align-items:center;height:56px;flex-shrink:0;padding:0 14px 0 20px;">
+      <div style="display:flex;align-items:center;gap:10px;width:210px;">
+        <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--water);color:var(--on-water);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="stroke-width:1.7;"><path d="M2.5 4h7"></path><path d="M6 2.5V4"></path><path d="M8 4c-.5 3-2.5 5.5-5 6.5"></path><path d="M4.5 6c.8 2 2.5 3.5 4.5 4.5"></path><path d="M9 14l2.5-6 2.5 6"></path><path d="M10 12h3"></path></svg></div>
+        <span style="font-size:14px;font-weight:600;letter-spacing:-0.015em;">UTranslate</span>
+      </div>
+      <div style="flex-grow:1;display:flex;justify-content:center;">
+        <div style="display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line-2);">
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Перевод</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">История</div>
+          <div style="padding:7px 18px;border-radius:999px;background:var(--tile-2);box-shadow:var(--sh-card);font-size:13px;font-weight:600;color:var(--ink);">Избранное</div>
+          <div style="padding:7px 18px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);">Настройки</div>
+        </div>
+      </div>
+      <div style="width:210px;display:flex;justify-content:flex-end;gap:4px;">
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3 8h10"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-2);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M3.5 3.5h9v9h-9z"></path></svg></div>
+        <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink);"><svg width="10" height="10" viewBox="0 0 16 16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+      </div>
+    </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;padding:0 20px 20px 20px;flex-grow:1;min-height:0;">
+        <div class="panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;flex-grow:1;min-height:0;">
+
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:9px;flex-grow:1;height:36px;padding:0 14px;border-radius:12px;background:var(--tile);border:1px solid var(--line-2);">
+              <svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-3);"><path d="M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"></path><path d="M10.5 10.5L14 14"></path></svg>
+              <span style="font-size:13px;color:var(--ink-3);">Поиск в избранном</span>
+            </div>
+            <div class="pill" style="height:36px;"><svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-2);"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Экспорт CSV</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:1px;">
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">14:32</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">The trick is to lean on what the system already ships</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Хитрость в том, чтобы опираться на то, что система уже даёт</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">12:47</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">resilient</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">устойчивый</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;background:var(--tile);">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">2 сент</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">The popup is created once and simply shown.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Окно попапа создаётся один раз и просто показывается.</span>
+              <div style="display:flex;gap:4px;">
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink-2);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);color:var(--ink-2);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">31 авг</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">DE → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">unberührt</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">нетронутый</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">30 авг</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">The clipboard must be returned untouched.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Буфер обмена должен быть возвращён нетронутым.</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">29 авг</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">EN → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">throughput</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">пропускная способность</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:16px;">
+              <span style="width:44px;flex-shrink:0;font-size:12px;color:var(--ink-3);">28 авг</span>
+              <span style="flex-shrink:0;padding:3px 9px;border-radius:999px;background:var(--mist-soft);font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--ink-2);">FR → RU</span>
+              <span class="ell" style="width:250px;flex-shrink:0;font-size:13px;">Le raccourci global ne doit pas voler le focus.</span>
+              <span class="ell" style="flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);">Глобальный хоткей не должен красть фокус.</span>
+              <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div class="rb28"><svg width="14" height="14" viewBox="0 0 16 16" class="ic"><path d="M3 4.5h10"></path><path d="M6.5 4.5v-2h3v2"></path><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg></div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:9px;padding:6px 12px 0 12px;">
+            <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--sand-soft);border:1px solid var(--sand-line);color:var(--sand-ink);"><svg width="11" height="11" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+            <span class="sub">в избранном</span>
+            <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);"><svg width="11" height="11" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+            <span class="sub">под курсором на третьей строке — нажатие снимет звезду</span>
+          </div>
+
+          <div style="flex-grow:1;"></div>
+          <span style="padding-left:12px;font-size:12px;color:var(--ink-3);">Экспорт кладёт CSV в «Загрузки» и показывает путь строкой ниже.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:9px;margin:26px 0 12px 0;">
+    <span class="cap">Пустые состояния</span>
+    <span class="sub">первый запуск и пустой поиск</span>
+  </div>
+
+  <div style="display:flex;gap:40px;">
+      <div class="panel" style="width:560px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;padding:20px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px 0;">
+          <div style="width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--water-soft);color:var(--water);"><svg width="30" height="30" viewBox="0 0 16 16" class="ic" style="stroke-width:1.2;"><path d="M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"></path><path d="M10.5 10.5L14 14"></path></svg></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:7px;max-width:380px;text-align:center;">
+            <span style="font-size:18px;font-weight:600;letter-spacing:-0.02em;">История пуста</span>
+            <span style="font-size:13px;line-height:1.5;color:var(--ink-2);">Выделите текст в любом окне и нажмите сочетание — перевод сохранится сюда.</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;"><span class="key">Ctrl</span><span style="font-size:12px;color:var(--ink-3);">+</span><span class="key">Alt</span><span style="font-size:12px;color:var(--ink-3);">+</span><span class="key">T</span></div>
+        </div>
+      </div>
+      <div class="panel" style="width:560px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;padding:20px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px 0;">
+          <div style="width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--water-soft);color:var(--water);"><svg width="30" height="30" viewBox="0 0 16 16" class="ic" style="stroke-width:1.2;"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:7px;max-width:380px;text-align:center;">
+            <span style="font-size:18px;font-weight:600;letter-spacing:-0.02em;">В избранном пусто</span>
+            <span style="font-size:13px;line-height:1.5;color:var(--ink-2);">Отметьте перевод звёздочкой — в попапе или в истории, — и он появится здесь.</span>
+          </div>
+          <span class="sub">Экспорт CSV включится, когда появится первая запись.</span>
+        </div>
+      </div>
+    <div class="panel" style="flex-grow:1;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:20px;">
+      <span class="cap">Ничего не найдено</span>
+      <div style="display:flex;align-items:center;gap:9px;height:36px;padding:0 14px;border-radius:12px;background:var(--tile);border:1px solid var(--line-2);">
+        <svg width="15" height="15" viewBox="0 0 16 16" class="ic" style="color:var(--ink-3);"><path d="M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"></path><path d="M10.5 10.5L14 14"></path></svg>
+        <span style="font-size:13px;">буфер</span>
+      </div>
+      <span style="font-size:13px;line-height:1.5;color:var(--ink-2);">Тот же список, но с запросом: «Ничего не найдено» вместо подсказки про хоткей — иначе совет не по делу.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

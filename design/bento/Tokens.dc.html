@@ -1,0 +1,462 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#E7ECEE; --bg-2:#DCE4E7; --card:#F8FAFA; --tile:#EEF2F3; --tile-2:#E4EAEC;
+      --line:rgba(23,37,42,0.08); --line-2:rgba(23,37,42,0.055);
+      --ink:#1B252A; --ink-2:#55666C; --ink-3:#8798A0;
+      --water:#2F6E7C; --water-deep:#245863; --water-soft:rgba(47,110,124,0.10); --water-line:rgba(47,110,124,0.26);
+      --stone:#C3D0D5; --mist:#93AAB5; --mist-soft:rgba(147,170,181,0.22);
+      --sand:#D9C9A9; --sand-ink:#8A6A3A; --sand-soft:rgba(176,138,74,0.16); --sand-line:rgba(176,138,74,0.34);
+      --ok:#2F6B52; --err:#A63B2C; --warn:#8A6A22;
+      --on-water:#F8FAFA;
+      --sh-card:0 8px 24px rgba(24,42,50,0.06);
+      --sh-pop:0 18px 44px rgba(24,42,50,0.16), 0 3px 10px rgba(24,42,50,0.07);
+      --sh-win:0 24px 60px rgba(24,42,50,0.16);
+      --sh-key:0 1px 0 rgba(23,37,42,0.16), 0 1px 2px rgba(24,42,50,0.10);
+      --spot:radial-gradient(52% 40% at 2% 0%, rgba(96,130,142,0.18), rgba(96,130,142,0) 66%), radial-gradient(44% 36% at 100% 100%, rgba(176,138,74,0.12), rgba(176,138,74,0) 70%);
+    }
+    body{margin:0;font-family:'Onest','Segoe UI Variable','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+    a{color:var(--water);} a:hover{color:var(--water-deep);}
+    .ic{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block;flex-shrink:0;}
+    .cap{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-3);}
+    .sub{font-size:11px;color:var(--ink-3);}
+    .ell{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .win{width:960px;height:640px;box-sizing:border-box;border-radius:18px;overflow:hidden;box-shadow:var(--sh-win);border:1px solid var(--line);display:flex;flex-direction:column;background-color:var(--bg);background-image:var(--spot);}
+    .panel{border-radius:24px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);}
+    .rb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);}
+    .rb28{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+    .pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .pill-w{display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;background:var(--water);color:var(--on-water);font-size:13px;font-weight:600;white-space:nowrap;}
+    .pill-a{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:999px;background:var(--water-soft);border:1px solid var(--water-line);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;}
+    .chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line-2);font-size:12px;color:var(--ink-2);white-space:nowrap;}
+    .key{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 9px;border-radius:8px;background:var(--tile);border:1px solid var(--line);box-shadow:var(--sh-key);font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .plan{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--sand-soft);border:1px solid var(--sand-line);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--sand-ink);white-space:nowrap;}
+    .sk{height:12px;border-radius:6px;background:var(--tile-2);}
+  </style>
+</helmet>
+
+<div style="width:1400px;height:2210px;box-sizing:border-box;padding:36px 40px 40px 40px;color:var(--ink);background:var(--bg-2);">
+
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
+    <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;">Токены · туман и вода</span>
+    <span class="sub">то, что ложится в app/src/index.css вместо стеклянных переменных</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <div style="display:flex;align-items:baseline;gap:10px;"><span class="cap">Палитра · светлая</span><span class="sub">html без data-theme и data-theme="light"</span></div>
+        <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#E7ECEE;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#E7ECEE</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">фон окна</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--bg</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#DCE4E7;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#DCE4E7</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">оправа, сегмент</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--bg-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#F8FAFA;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#F8FAFA</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">карточка</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--card</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#EEF2F3;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#EEF2F3</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">плитка, контрол</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--tile</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#E4EAEC;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#E4EAEC</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">вложенная плитка</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--tile-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#1B252A;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#1B252A</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">текст</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--ink</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#55666C;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#55666C</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">второй уровень</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--ink-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#8798A0;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#8798A0</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">подписи</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--ink-3</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#2F6E7C;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#2F6E7C</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">акцент, главное</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--water</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#245863;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#245863</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">нажатие акцента</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--water-deep</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#C3D0D5;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#C3D0D5</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">камень, разделители</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--stone</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#93AAB5;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#93AAB5</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">туман, бейджи</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--mist</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#D9C9A9;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#D9C9A9</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">песок, избранное</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--sand</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#2F6B52;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#2F6B52</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">успех</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--ok</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#A63B2C;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#A63B2C</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">ошибка</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--err</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#8A6A22;border:1px solid rgba(23,37,42,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#8A6A22</span>
+            <span style="font-size:11px;color:var(--ink-3);" class="ell">предупреждение</span>
+            <span style="font-size:10px;color:var(--ink-3);opacity:0.85;">--warn</span>
+          </div>
+        </div>
+      <span class="sub">Граница --line: rgba(23,37,42,0.08) · тонкая --line-2: rgba(23,37,42,0.055) · текст на воде --on-water: #F8FAFA</span>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;background:#1A2429;border-color:rgba(226,238,242,0.09);color:#E4EDF0;box-shadow:0 8px 24px rgba(0,0,0,0.32);">
+      <div style="display:flex;align-items:baseline;gap:10px;"><span class="cap" style="color:#6F818A;">Палитра · тёмная</span><span style="font-size:11px;color:#6F818A;">html[data-theme="dark"] — сине-графит, не чёрный и не тёплый</span></div>
+        <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#121A1E;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#121A1E</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">фон окна</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--bg</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#0D1417;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#0D1417</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">оправа, сегмент</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--bg-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#1A2429;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#1A2429</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">карточка</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--card</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#212D33;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#212D33</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">плитка, контрол</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--tile</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#2A373E;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#2A373E</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">вложенная плитка</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--tile-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#E4EDF0;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#E4EDF0</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">текст</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--ink</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#9BADB5;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#9BADB5</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">второй уровень</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--ink-2</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#6F818A;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#6F818A</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">подписи</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--ink-3</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#63B6C6;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#63B6C6</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">акцент, главное</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--water</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#7FCBDA;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#7FCBDA</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">наведение акцента</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--water-deep</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#4A5B63;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#4A5B63</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">камень, разделители</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--stone</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#7C99A5;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#7C99A5</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">туман, бейджи</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--mist</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#C9AE7E;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#C9AE7E</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">песок, избранное</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--sand</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#7FBFA0;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#7FBFA0</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">успех</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--ok</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#E8897E;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#E8897E</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">ошибка</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--err</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+            <div style="height:52px;border-radius:14px;background:#D7B573;border:1px solid rgba(226,238,242,0.10);"></div>
+            <span style="font-size:11px;font-weight:600;">#D7B573</span>
+            <span style="font-size:11px;color:#6F818A;" class="ell">предупреждение</span>
+            <span style="font-size:10px;color:#6F818A;opacity:0.85;">--warn</span>
+          </div>
+        </div>
+      <span style="font-size:11px;color:#6F818A;">Граница --line: rgba(226,238,242,0.09) · тонкая --line-2: rgba(226,238,242,0.06) · текст на воде --on-water: #0E181C</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <span class="cap">Радиусы</span>
+      <div style="display:flex;align-items:flex-end;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:26px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">26</span>
+          <span style="font-size:10px;color:var(--ink-3);">попап</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:24px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">24</span>
+          <span style="font-size:10px;color:var(--ink-3);">панель</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:20px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">20</span>
+          <span style="font-size:10px;color:var(--ink-3);">плитка</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:16px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">16</span>
+          <span style="font-size:10px;color:var(--ink-3);">строка</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:12px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">12</span>
+          <span style="font-size:10px;color:var(--ink-3);">поле</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+          <div style="width:66px;height:66px;border-radius:999px;background:var(--tile);border:1px solid var(--line);"></div>
+          <span style="font-size:11px;font-weight:600;">999</span>
+          <span style="font-size:10px;color:var(--ink-3);">пилюля</span>
+        </div>
+      </div>
+      <span style="font-size:12px;line-height:1.5;color:var(--ink-3);">Вложение концентрическое: внутренний радиус = внешний минус поле. Окно — 18, его скругляет ещё и Windows. Кейкап — 8.</span>
+    </div>
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <span class="cap">Тени и границы</span>
+      <div style="display:flex;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:112px;height:66px;border-radius:20px;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(24,42,50,0.06);"></div>
+          <span style="font-size:11px;font-weight:600;">--sh-card</span>
+          <span style="font-size:10px;color:var(--ink-3);">0 8 24 / 6 %</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:112px;height:66px;border-radius:20px;background:var(--card);border:1px solid var(--line);box-shadow:0 18px 44px rgba(24,42,50,0.16), 0 3px 10px rgba(24,42,50,0.07);"></div>
+          <span style="font-size:11px;font-weight:600;">--sh-pop</span>
+          <span style="font-size:10px;color:var(--ink-3);">0 18 44 / 16 %</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:112px;height:66px;border-radius:20px;background:var(--card);border:1px solid var(--line);box-shadow:0 24px 60px rgba(24,42,50,0.16);"></div>
+          <span style="font-size:11px;font-weight:600;">--sh-win</span>
+          <span style="font-size:10px;color:var(--ink-3);">0 24 60 / 16 %</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:112px;height:66px;border-radius:20px;background:var(--card);border:1px solid var(--line);box-shadow:0 1px 0 rgba(23,37,42,0.16), 0 1px 2px rgba(24,42,50,0.10);"></div>
+          <span style="font-size:11px;font-weight:600;">--sh-key</span>
+          <span style="font-size:10px;color:var(--ink-3);">кейкап, 1 px</span>
+        </div>
+      </div>
+      <span style="font-size:12px;line-height:1.5;color:var(--ink-3);">Глубина держится на тональности: карточка на тон светлее фона плюс волосяная граница. Ничего не светится — --accent-glow и белые блики удаляются.</span>
+    </div>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <div style="display:flex;align-items:baseline;gap:10px;"><span class="cap">Типографическая шкала</span><span class="sub">Onest Variable, иерархия размером и весом, а не цветом</span></div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">26 / 600 / −0.025</span>
+          <span style="font-size:26px;font-weight:600;letter-spacing:-0.025em;">draft — черновик</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">21 / 400 / 1.5</span>
+          <span style="font-size:21px;line-height:1.5;letter-spacing:-0.005em;">Перевод в попапе</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">20 / 400 / 1.55</span>
+          <span style="font-size:20px;line-height:1.55;letter-spacing:-0.005em;">Перевод в главном окне</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">19 / 600 / −0.02</span>
+          <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;">Заголовок пустого состояния</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">16 / 400 / 1.6</span>
+          <span style="font-size:16px;line-height:1.6;color:var(--ink-2);">Исходный текст в окне</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">14 / 600 / −0.01</span>
+          <span style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Заголовок плитки настроек</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">13 / 500</span>
+          <span style="font-size:13px;font-weight:500;">Пилюли, кнопки, строки списка</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">12 / 600 / кейкап</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 9px;border-radius:8px;background:var(--tile);border:1px solid var(--line);box-shadow:var(--sh-key);font-size:12px;font-weight:600;">Ctrl</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">12 / 400</span>
+          <span style="font-size:12px;color:var(--ink-3);">Подписи, счётчик символов, время</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:16px;">
+          <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--ink-3);">11 / 600 / 0.09 / caps</span>
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-3);">Заголовок группы</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <div style="display:flex;align-items:baseline;gap:10px;"><span class="cap">Состояния контролов</span><span class="sub">нажатие всегда темнее и на 0.97; фокус — кольцо 3 px на воде, не свечение</span></div>
+        <div style="display:grid;grid-template-columns:150px repeat(5,minmax(0,1fr));gap:10px 12px;align-items:center;">
+          <span></span>
+          <span style="text-align:center;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);">обычное</span>
+          <span style="text-align:center;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);">наведение</span>
+          <span style="text-align:center;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);">нажатие</span>
+          <span style="text-align:center;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);">выключено</span>
+          <span style="text-align:center;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);">фокус</span>
+          <span style="font-size:13px;color:var(--ink-2);">Главное действие</span>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--water);color:var(--on-water);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--water-deep);color:var(--on-water);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--water-deep);color:var(--on-water);transform:scale(0.97);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-3);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--water);color:var(--on-water);box-shadow:0 0 0 3px var(--water-soft);"><svg width="15" height="15" viewBox="0 0 16 16" class="ic"><path d="M5.5 5.5h7.5v7.5H5.5z"></path><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>Копировать</div></div>
+          <span style="font-size:13px;color:var(--ink-2);">Нейтральная пилюля</span>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;background:var(--tile);border:1px solid var(--line-2);color:var(--ink);">Озвучить</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;background:var(--tile-2);border:1px solid var(--line);color:var(--ink);">Озвучить</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;background:var(--tile-2);border:1px solid var(--line);color:var(--ink);transform:scale(0.97);">Озвучить</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-3);opacity:0.55;">Озвучить</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;background:var(--tile);border:1px solid var(--water-line);color:var(--ink);box-shadow:0 0 0 3px var(--water-soft);">Озвучить</div></div>
+          <span style="font-size:13px;color:var(--ink-2);">Круглая кнопка</span>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-2);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);border:1px solid var(--line);color:var(--ink);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile-2);border:1px solid var(--line);color:var(--ink);transform:scale(0.97);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-3);opacity:0.55;"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--water-line);color:var(--water);box-shadow:0 0 0 3px var(--water-soft);"><svg width="16" height="16" viewBox="0 0 16 16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div></div>
+          <span style="font-size:13px;color:var(--ink-2);">Поле хоткея</span>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;width:140px;height:34px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--tile);border:1px solid var(--line-2);color:var(--ink-3);">Ctrl+Alt+T</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;width:140px;height:34px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--tile);border:1px solid var(--line);color:var(--ink-2);">Ctrl+Alt+T</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;width:140px;height:34px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--tile-2);border:1px solid var(--line);color:var(--ink);">Ctrl+Alt+T</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;width:140px;height:34px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--tile);border:1px dashed var(--line);color:var(--ink-3);opacity:0.6;">Ctrl+Alt+T</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="display:flex;align-items:center;width:140px;height:34px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--tile);border:1px solid var(--water-line);color:var(--ink);box-shadow:0 0 0 3px var(--water-soft);">Ctrl+Alt+T</div></div>
+          <span style="font-size:13px;color:var(--ink-2);">Тумблер</span>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="position:relative;width:46px;height:26px;border-radius:999px;background:var(--tile-2);border:1px solid var(--line-2);"><span style="position:absolute;left:3px;top:2px;width:20px;height:20px;border-radius:50%;background:var(--card);box-shadow:0 1px 3px rgba(24,42,50,0.18);"></span></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="position:relative;width:46px;height:26px;border-radius:999px;background:var(--tile-2);border:1px solid var(--line-2);border-color:var(--water-line);"><span style="position:absolute;left:3px;top:2px;width:20px;height:20px;border-radius:50%;background:var(--card);box-shadow:0 1px 3px rgba(24,42,50,0.18);"></span></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="position:relative;width:46px;height:26px;border-radius:999px;background:var(--water);transform:scale(0.97);"><span style="position:absolute;left:22px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--on-water);box-shadow:0 1px 3px rgba(24,42,50,0.28);"></span></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="position:relative;width:46px;height:26px;border-radius:999px;background:var(--tile-2);border:1px solid var(--line-2);opacity:0.5;"><span style="position:absolute;left:3px;top:2px;width:20px;height:20px;border-radius:50%;background:var(--card);box-shadow:0 1px 3px rgba(24,42,50,0.18);"></span></div></div>
+          <div style="display:flex;align-items:center;justify-content:center;min-height:46px;"><div style="position:relative;width:46px;height:26px;border-radius:999px;background:var(--water);box-shadow:0 0 0 3px var(--water-soft);"><span style="position:absolute;left:22px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--on-water);box-shadow:0 1px 3px rgba(24,42,50,0.28);"></span></div></div>
+        </div>
+      <span style="font-size:12px;line-height:1.5;color:var(--ink-3);">В тёмной теме те же правила с инвертированной тональностью: наведение светлее, нажатие ещё светлее, кольцо фокуса — rgba(99,182,198,0.14).</span>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px;padding:22px;">
+      <span class="cap">Что меняется в index.css</span>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">--glass</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">полупрозрачная капсула → непрозрачная var(--card); backdrop-filter и .glass::before уходят</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">--surface</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">rgba-стекло → сплошной #F8FAFA / #1A2429</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">--accent</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">#b9a7ff и #6d4dff → #2F6E7C в светлой, #63B6C6 в тёмной</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">--accent-glow</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">удалить: свечения и box-shadow у .dot больше нет</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">--ink / --fg</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">23 37 42 в светлой, 226 238 242 в тёмной</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">.glass, .card</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">убрать верхний градиент-блик и inset 1px белого, оставить границу и тень</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">.mesh</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">три радиальных пятна → два: вода слева сверху, песок справа снизу, обе слабее 20 %</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="width:132px;flex-shrink:0;font-size:12px;font-weight:600;">новые</span>
+          <span style="font-size:12px;line-height:1.45;color:var(--ink-2);">--tile, --tile-2, --water-deep, --stone, --mist, --sand, --on-water, --sh-key</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

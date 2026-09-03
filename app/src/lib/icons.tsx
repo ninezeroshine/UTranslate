@@ -17,7 +17,9 @@ const PATHS: Record<string, string[]> = {
   translate: ["M2.5 4h7", "M6 2.5V4", "M8 4c-.5 3-2.5 5.5-5 6.5", "M4.5 6c.8 2 2.5 3.5 4.5 4.5", "M9 14l2.5-6 2.5 6", "M10 12h3"],
 };
 
-export function Icon({ name, size = 16, className = "" }: { name: keyof typeof PATHS; size?: number; className?: string }) {
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 16, className = "" }: { name: IconName; size?: number; className?: string }) {
   const s = size / 16;
   return (
     <svg width={size} height={size} className={`ic ${className}`} style={{ flexShrink: 0 }}>

@@ -33,7 +33,7 @@ impl Default for Settings {
             ui_lang: "ru".into(),
             history_enabled: true,
             show_original: false,
-            font_size: 16,
+            font_size: 21,  // кегль перевода в попапе по листу токенов design/bento
         }
     }
 }

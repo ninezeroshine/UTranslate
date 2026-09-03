@@ -1,26 +1,48 @@
 @import "tailwindcss";
-@import "@heroui/styles";
 @import "@fontsource-variable/onest";
 
-/* Тема переключается атрибутом html[data-theme] — тем же, что читает @heroui/styles
-   (dist/themes/default/variables.css: [data-theme="light"] / [data-theme="dark"]).
-   Тёмные значения ниже — исходные, до появления светлой темы.
-   --ink и --fg заданы триплетами: цвет наложений и цвет текста меняются вместе с темой,
-   а прозрачность остаётся на месте использования, поэтому оттенков не становится больше. */
+/* Палитра «туман и вода» — design/bento/Tokens.dc.html. Материал матовый: карточка на тон
+   светлее фона плюс волосяная граница, глубина держится тональностью и широкой слабой тенью.
+   Ни стекла, ни блюра, ни свечений.
+
+   Светлая тема на :root, тёмная под html[data-theme="dark"] — атрибут ставит lib/theme.ts.
+   main.tsx зовёт applyTheme("system") до первого кадра, поэтому окно не моргает не тем
+   цветом, пока settings_get идёт по IPC. */
 :root {
-  color-scheme: dark;
-  --ink: 255 255 255;                              /* заливки, границы, полупрозрачный текст */
-  --fg: 244 244 248;                               /* основной текст */
-  --bg: #0e1016;                                   /* фон окна */
-  --surface: rgba(20, 22, 30, 0.55);               /* карточка в главном окне */
-  --glass: rgba(14, 16, 22, 0.86);                 /* капсула попапа */
-  --accent: #b9a7ff;
-  --accent-glow: rgba(185, 167, 255, 0.9);
-  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 48px rgba(185, 167, 255, 0.1);
-  --shadow-card: 0 20px 50px rgba(0, 0, 0, 0.35);
-  --ok: #6ee7b7;
-  --err: #fca5a5;
-  --warn: #fde68a;
+  color-scheme: light;
+  --bg: #e7ecee;                     /* фон окна */
+  --bg-2: #dce4e7;                   /* оправа, сегментные вкладки */
+  --card: #f8fafa;                   /* карточка, капсула попапа */
+  --tile: #eef2f3;                   /* плитка, контрол в покое */
+  --tile-2: #e4eaec;                 /* вложенная плитка, наведение */
+  --line: rgba(23, 37, 42, 0.08);    /* граница карточки */
+  --line-2: rgba(23, 37, 42, 0.055); /* граница контрола */
+  --ink: #1b252a;                    /* текст */
+  --ink-2: #55666c;                  /* второй уровень */
+  --ink-3: #8798a0;                  /* подписи */
+  --water: #2f6e7c;                  /* акцент, главное действие */
+  --water-deep: #245863;             /* наведение и нажатие акцента */
+  --water-soft: rgba(47, 110, 124, 0.1);
+  --water-line: rgba(47, 110, 124, 0.26);
+  --stone: #c3d0d5;                  /* разделители, блик скелета */
+  --mist: #93aab5;
+  --mist-soft: rgba(147, 170, 181, 0.22);
+  --sand: #d9c9a9;                   /* единственное тёплое пятно: избранное и резервный движок */
+  --sand-ink: #8a6a3a;
+  --sand-soft: rgba(176, 138, 74, 0.16);
+  --sand-line: rgba(176, 138, 74, 0.34);
+  --ok: #2f6b52;
+  --err: #a63b2c;
+  --warn: #8a6a22;
+  --on-water: #f8fafa;               /* текст на заливке акцентом */
+  --sh-card: 0 8px 24px rgba(24, 42, 50, 0.06);
+  --sh-pop: 0 18px 44px rgba(24, 42, 50, 0.16), 0 3px 10px rgba(24, 42, 50, 0.07);
+  --sh-win: 0 24px 60px rgba(24, 42, 50, 0.16);
+  --sh-key: 0 1px 0 rgba(23, 37, 42, 0.16), 0 1px 2px rgba(24, 42, 50, 0.1);
+  /* мягкое цветовое пятно под фоном окна: вода слева сверху, песок справа снизу */
+  --spot:
+    radial-gradient(52% 40% at 2% 0%, rgba(96, 130, 142, 0.18), rgba(96, 130, 142, 0) 66%),
+    radial-gradient(44% 36% at 100% 100%, rgba(176, 138, 74, 0.12), rgba(176, 138, 74, 0) 70%);
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -29,169 +51,603 @@
   --dur-base: 220ms;
 }
 
-/* Светлая: матовое белое стекло на почти белом фоне, тени мягче и холоднее.
-   Акцент другой: лаванда #b9a7ff на белом даёт 1.7:1 и нечитаема — берём тёмный конец
-   градиента иконки #6d4dff (5.0:1 и как текст на белом, и как фон под белым текстом). */
-html[data-theme="light"] {
-  color-scheme: light;
-  --ink: 22 22 29;
-  --fg: 22 22 29;
-  --bg: #f5f5fa;
-  --surface: rgba(255, 255, 255, 0.72);
-  --glass: rgba(255, 255, 255, 0.9);
-  --accent: #6d4dff;
-  --accent-glow: rgba(109, 77, 255, 0.45);
-  --shadow-pop: 0 16px 40px rgba(46, 38, 88, 0.16), 0 2px 8px rgba(46, 38, 88, 0.1), 0 0 48px rgba(109, 77, 255, 0.1);
-  --shadow-card: 0 20px 50px rgba(46, 38, 88, 0.1);
-  --ok: #047857;
-  --err: #b91c1c;
-  --warn: #92400e;
+/* Тёмная: сине-графит, не чёрный и не тёплый. Вода светлеет, «наведение» становится светлее
+   покоя — те же имена, инвертированная тональность. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121a1e;
+  --bg-2: #0d1417;
+  --card: #1a2429;
+  --tile: #212d33;
+  --tile-2: #2a373e;
+  --line: rgba(226, 238, 242, 0.09);
+  --line-2: rgba(226, 238, 242, 0.06);
+  --ink: #e4edf0;
+  --ink-2: #9badb5;
+  --ink-3: #6f818a;
+  --water: #63b6c6;
+  --water-deep: #7fcbda;
+  --water-soft: rgba(99, 182, 198, 0.14);
+  --water-line: rgba(99, 182, 198, 0.34);
+  --stone: #4a5b63;
+  --mist: #7c99a5;
+  --mist-soft: rgba(124, 153, 165, 0.2);
+  --sand: #c9ae7e;
+  --sand-ink: #c9ae7e;
+  --sand-soft: rgba(201, 174, 126, 0.16);
+  --sand-line: rgba(201, 174, 126, 0.34);
+  --ok: #7fbfa0;
+  --err: #e8897e;
+  --warn: #d7b573;
+  --on-water: #0e181c;
+  --sh-card: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --sh-pop: 0 18px 44px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.34);
+  --sh-win: 0 24px 60px rgba(0, 0, 0, 0.52);
+  --sh-key: 0 1px 0 rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --spot:
+    radial-gradient(52% 40% at 2% 0%, rgba(99, 182, 198, 0.1), rgba(99, 182, 198, 0) 66%),
+    radial-gradient(44% 36% at 100% 100%, rgba(201, 174, 126, 0.06), rgba(201, 174, 126, 0) 70%);
 }
 
-/* inline — чтобы утилиты подставляли var(--ink) напрямую и переключались без пересборки */
+/* inline — утилиты подставляют var(--…) напрямую и переключаются вместе с атрибутом,
+   без пересборки. Радиусы концентрические: внутренний = внешний минус поле. */
 @theme inline {
-  --color-ink: rgb(var(--ink));
-  --color-fg: rgb(var(--fg));
-  --color-accent: var(--accent);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-water: var(--water);
+  --color-water-deep: var(--water-deep);
+  --color-stone: var(--stone);
+  --color-mist: var(--mist);
+  --color-sand: var(--sand);
+  --color-sand-ink: var(--sand-ink);
   --color-ok: var(--ok);
   --color-err: var(--err);
   --color-warn: var(--warn);
+  --color-card: var(--card);
+  --color-tile: var(--tile);
+  --color-tile-2: var(--tile-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-on-water: var(--on-water);
+
+  --radius-pop: 26px;
+  --radius-panel: 24px;
+  --radius-tile: 20px;
+  --radius-row: 16px;
+  --radius-field: 12px;
+  --radius-key: 8px;
 }
 
-html, body, #root { height: 100%; margin: 0; }
-body {
-  font-family: "Onest Variable", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: rgb(var(--fg));
-  background: var(--bg);
-  user-select: none;
-  overflow: hidden;
-  cursor: default;
-}
-html[data-surface="popup"], html[data-surface="popup"] body { background: transparent; }
-textarea, input, .select-text { user-select: text; cursor: text; }
-button { cursor: default; }
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
 
-/* Белые блики (градиент сверху, inset 0 1px 0) остаются белыми в обеих темах: в светлой они
-   ложатся на белое стекло и просто не видны — это дешевле отдельного набора переменных.
-   ponytail: без настоящего блюра рабочего стола — WebView2 не размывает то, что под окном; апгрейд — акрил через window-vibrancy плюс точный размер окна */
-.glass {
-  position: relative;
-  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), var(--glass);
-  box-shadow:
-    inset 0 0 0 1px rgb(var(--ink) / 0.12),
-    inset 0 1px 0 rgba(255,255,255,0.22),
-    var(--shadow-pop);
-  color: rgb(var(--fg));
-}
-.glass::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%);
-}
-.card {
-  position: relative;
-  background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%), var(--surface);
-  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.09), inset 0 1px 0 rgba(255,255,255,0.16), var(--shadow-card);
-}
-.card::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.14), rgba(255,255,255,0) 55%);
-}
-.mesh {
-  background:
-    radial-gradient(55% 45% at 8% 0%, rgba(185,167,255,0.22), rgba(185,167,255,0) 65%),
-    radial-gradient(45% 40% at 100% 100%, rgba(90,211,200,0.14), rgba(90,211,200,0) 65%),
-    radial-gradient(35% 30% at 60% 30%, rgba(255,170,140,0.08), rgba(255,170,140,0) 70%),
-    var(--bg);
-}
-html[data-theme="light"] .mesh {
-  background:
-    radial-gradient(55% 45% at 8% 0%, rgba(150,120,255,0.16), rgba(150,120,255,0) 65%),
-    radial-gradient(45% 40% at 100% 100%, rgba(40,190,180,0.13), rgba(40,190,180,0) 65%),
-    radial-gradient(35% 30% at 60% 30%, rgba(255,150,110,0.06), rgba(255,150,110,0) 70%),
-    var(--bg);
+  body {
+    font-family: "Onest Variable", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--ink);
+    background: var(--bg);
+    user-select: none;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* Окно попапа прозрачное: карточка живёт в поле под тень (MARGIN в Popup.tsx и popup.rs). */
+  html[data-surface="popup"],
+  html[data-surface="popup"] body {
+    background: transparent;
+  }
+
+  textarea,
+  input,
+  .select-text {
+    user-select: text;
+    cursor: text;
+  }
+
+  button {
+    cursor: default;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--stone);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
-.pill {
-  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px;
-  background: rgb(var(--ink) / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.10), inset 0 1px 0 rgba(255,255,255,0.12);
-  font-size: 13px; font-weight: 500; color: rgb(var(--fg)); white-space: nowrap;
-  transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
+@layer components {
+  /* ---- поверхности ---- */
+
+  /* Панель главного окна. */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--sh-card);
+    color: var(--ink);
+  }
+
+  /* Капсула попапа: та же поверхность, тень глубже. Радиус задаёт морфинг, поэтому его тут нет. */
+  .pop {
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-pop);
+    color: var(--ink);
+  }
+
+  /* Плитка внутри панели. */
+  .tile {
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-tile);
+  }
+
+  /* Фон окна: цвет плюс мягкое пятно. */
+  .spot {
+    background-color: var(--bg);
+    background-image: var(--spot);
+  }
+
+  /* ---- контролы ---- */
+
+  /* Пилюля. Нейтральная — плитка; .water — главное действие; .active — выбранное состояние.
+     Нажатие всегда темнее и на 0.97, фокус — кольцо 3 px на воде. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease,
+      border-color 150ms ease, color 150ms ease;
+  }
+  .pill.md {
+    height: 36px;
+    padding: 0 16px;
+  }
+  .pill:hover:not(:disabled) {
+    background: var(--tile-2);
+    border-color: var(--line);
+  }
+  .pill:active:not(:disabled) {
+    transform: scale(0.97);
+    background: var(--tile-2);
+    border-color: var(--line);
+  }
+  .pill.water {
+    background: var(--water);
+    border-color: transparent;
+    color: var(--on-water);
+    font-weight: 600;
+  }
+  .pill.water:hover:not(:disabled),
+  .pill.water:active:not(:disabled) {
+    background: var(--water-deep);
+    border-color: transparent;
+  }
+  .pill.active {
+    background: var(--water-soft);
+    border-color: var(--water-line);
+    color: var(--ink);
+  }
+  .pill:disabled {
+    color: var(--ink-3);
+    opacity: 0.55;
+  }
+  .pill.water:disabled {
+    background: var(--tile);
+    border-color: var(--line-2);
+  }
+
+  /* Круглая кнопка. .active — включено (вода), .warm — избранное (песок). */
+  .rb {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    color: var(--ink-2);
+    transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease,
+      border-color 150ms ease, color 150ms ease;
+  }
+  .rb.sm {
+    width: 28px;
+    height: 28px;
+  }
+  .rb.md {
+    width: 36px;
+    height: 36px;
+  }
+  .rb:hover:not(:disabled) {
+    background: var(--tile-2);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+  .rb:active:not(:disabled) {
+    transform: scale(0.97);
+    background: var(--tile-2);
+    border-color: var(--line);
+  }
+  .rb.active {
+    background: var(--water-soft);
+    border-color: var(--water-line);
+    color: var(--water);
+  }
+  .rb.warm {
+    background: var(--sand-soft);
+    border-color: var(--sand-line);
+    color: var(--sand-ink);
+  }
+  .rb:disabled {
+    color: var(--ink-3);
+    opacity: 0.55;
+  }
+
+  /* Пилюля языков в шапке. В свёрнутой капсуле фона нет — она проявляется вместе с карточкой. */
+  .langpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  }
+  .langpill.on {
+    background: var(--tile-2);
+    border-color: var(--line-2);
+  }
+
+  /* Бейдж: какой движок ответил. .sand — цепочка ушла на резервный. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .badge.sand {
+    background: var(--sand-soft);
+    border-color: var(--sand-line);
+    color: var(--sand-ink);
+  }
+  .badge-dot {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+  .badge.sand .badge-dot {
+    background: currentColor;
+  }
+
+  /* Значение в словаре, тег в списке. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    font-size: 12px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease,
+      border-color 150ms ease;
+  }
+  .chip:hover {
+    background: var(--tile-2);
+    border-color: var(--line);
+  }
+  .chip:active {
+    transform: scale(0.97);
+  }
+
+  /* Кейкап хоткея. */
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 9px;
+    border-radius: var(--radius-key);
+    background: var(--tile);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-key);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .field {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: var(--radius-field);
+    background: var(--tile);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  }
+  .field:hover {
+    border-color: var(--line);
+  }
+  .field::placeholder {
+    color: var(--ink-3);
+  }
+  .field:focus {
+    border-color: var(--water-line);
+    box-shadow: 0 0 0 3px var(--water-soft);
+  }
+  select.field option {
+    background: var(--card);
+    color: var(--ink);
+  }
+
+  /* Клавиатурный фокус виден везде одинаково: кольцо на воде, не свечение. */
+  .pill:focus-visible,
+  .rb:focus-visible,
+  .chip:focus-visible,
+  .seg:focus-visible,
+  .wc:focus-visible,
+  .toggle-track:focus-visible,
+  .row:focus-visible {
+    outline: none;
+    border-color: var(--water-line);
+    box-shadow: 0 0 0 3px var(--water-soft);
+  }
+  /* На сплошной заливке акцентом слабое кольцо не читается — отбиваем его цветом карточки. */
+  .pill.water:focus-visible {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--water);
+  }
+
+  /* Сегментные вкладки: оправа, кнопка и подложка активной (motion.div с layoutId). */
+  .segbar {
+    border-radius: 999px;
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+  }
+  .seg {
+    position: relative;
+    padding: 7px 16px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-3);
+    white-space: nowrap;
+    transition: transform var(--dur-press) var(--ease-out), color 150ms ease;
+  }
+  .seg:hover {
+    color: var(--ink);
+  }
+  .seg:active {
+    transform: scale(0.97);
+  }
+  .seg.active {
+    color: var(--ink);
+  }
+  .tab-pill {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-card);
+  }
+
+  .toggle-track {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--tile-2);
+    border: 1px solid var(--line-2);
+    transition: background-color 200ms ease, border-color 200ms ease;
+  }
+  .toggle-track.on {
+    background: var(--water);
+    border-color: transparent;
+  }
+  .toggle-thumb {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--card);
+    box-shadow: 0 1px 3px rgba(24, 42, 50, 0.18);
+    transform: translateX(0);
+    transition: transform 200ms var(--ease-out), background-color 200ms ease;
+  }
+  .toggle-thumb.on {
+    background: var(--on-water);
+    transform: translateX(20px);
+  }
+
+  /* Кнопки заголовка окна. */
+  .wc {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    color: var(--ink-3);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .wc:hover {
+    background: var(--tile-2);
+    color: var(--ink);
+  }
+  .wc.close:hover {
+    background: var(--err);
+    color: var(--on-water);
+  }
+
+  /* Круглая кнопка «поменять местами» между колонками перевода. */
+  .swap {
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-card);
+    color: var(--ink-2);
+    transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
+  }
+  .swap:hover {
+    background: var(--tile);
+    color: var(--ink);
+  }
+  .swap:active {
+    transform: scale(0.97);
+  }
+
+  .row {
+    border-radius: var(--radius-row);
+    border: 1px solid transparent;
+    transition: background-color 150ms ease;
+  }
+  .row:hover {
+    background: var(--tile);
+  }
+
+  /* Точка состояния: залита — язык определён, кольцо — определяем. Свечения нет. */
+  .dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--water);
+  }
+  .dot.hollow {
+    background: transparent;
+    border: 1.5px solid var(--water);
+  }
+
+  .sk {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--tile-2) 0%, var(--stone) 50%, var(--tile-2) 100%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  .ic {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
+  }
+
+  .chevron {
+    transition: transform 200ms var(--ease-out);
+  }
 }
-.pill:hover { background: rgb(var(--ink) / 0.13); }
-.pill:active { transform: scale(0.97); background: rgb(var(--ink) / 0.18); }
-.pill.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 1px 0 rgba(255,255,255,0.12);
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.55);
+    opacity: 0.45;
+  }
 }
-.rb {
-  width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: rgb(var(--ink) / 0.06); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08); color: rgb(var(--fg) / 0.72);
-  transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
+.pulse {
+  animation: pulse 1.2s ease-in-out infinite;
 }
-.rb:hover { background: rgb(var(--ink) / 0.12); color: rgb(var(--fg)); }
-.rb:active { transform: scale(0.97); }
-.rb.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.chip {
-  display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 999px;
-  background: rgb(var(--ink) / 0.07); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08);
-  font-size: 13px; color: rgb(var(--fg) / 0.9); white-space: nowrap;
-  transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease;
+
+@keyframes star-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
-.chip:hover { background: rgb(var(--ink) / 0.13); }
-.chip:active { transform: scale(0.97); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); flex-shrink: 0; }
-@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.55); opacity: 0.45; } }
-.pulse { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes star-pop { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
-.star-pop { animation: star-pop 240ms var(--ease-out); }
-@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
-.sk {
-  height: 12px; border-radius: 6px;
-  background: linear-gradient(90deg, rgb(var(--ink) / 0.08) 0%, rgb(var(--ink) / 0.18) 50%, rgb(var(--ink) / 0.08) 100%);
-  background-size: 400px 100%; animation: shimmer 1.4s linear infinite;
+.star-pop {
+  animation: star-pop 240ms var(--ease-out);
 }
-.ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
-.seg {
-  position: relative; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  color: rgb(var(--fg) / 0.55); white-space: nowrap;
-  transition: transform var(--dur-press) var(--ease-out), color 150ms ease;
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
 }
-.seg:hover { color: rgb(var(--fg)); }
-.seg:active { transform: scale(0.97); }
-.seg.active { color: rgb(var(--fg)); }
-/* оправа сегментных вкладок: шапка главного окна и переключатель темы */
-.segbar { border-radius: 999px; background: rgb(var(--ink) / 0.05); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.07); }
-.wc { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: rgb(var(--fg) / 0.6); transition: background-color 120ms ease; }
-.wc:hover { background: rgb(var(--ink) / 0.10); color: rgb(var(--fg)); }
-.wc.close:hover { background: rgba(255,80,90,0.5); }
-html[data-theme="light"] .wc.close:hover { color: #fff; }
-/* подложка активной вкладки — отдельный слой под текстом, motion.div с layoutId в Main.tsx */
-.tab-pill { position: absolute; inset: 0; border-radius: 999px; background: rgb(var(--ink) / 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14); }
-/* круглая кнопка «поменять местами» между колонками перевода */
-.swap {
-  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)), rgba(24,26,36,0.9);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px rgba(0,0,0,0.45);
-  color: rgba(244,244,248,0.9);
+
+/* Смещения и масштаб убираем, цвет и opacity оставляем — как в motion.md. */
+@media (prefers-reduced-motion: reduce) {
+  .pill,
+  .rb,
+  .chip,
+  .seg,
+  .swap,
+  .toggle-thumb,
+  .chevron {
+    transition-duration: 1ms;
+  }
+  .pill:active,
+  .rb:active,
+  .chip:active,
+  .seg:active,
+  .swap:active {
+    transform: none;
+  }
+  .pulse,
+  .star-pop {
+    animation: none;
+  }
+  .sk {
+    background: var(--tile-2);
+    animation: none;
+  }
 }
-html[data-theme="light"] .swap {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px rgb(22 22 29 / 0.10), 0 8px 24px rgba(46,38,88,0.16);
-  color: rgb(22 22 29 / 0.75);
-}
-.chevron { transition: transform 200ms var(--ease-out); }
-.toggle-track { transition: background-color 200ms ease; }
-.toggle-thumb { transition: transform 200ms var(--ease-out); transform: translateX(0); }
-.toggle-thumb.on { transform: translateX(20px); }
-.field {
-  height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13px; color: rgb(var(--fg));
-  background: rgb(var(--ink) / 0.06); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08); outline: none;
-}
-.field:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
-select.field option { background: #171a22; color: rgb(var(--fg)); }
-html[data-theme="light"] select.field option { background: #fff; }
-.row:hover { background: rgb(var(--ink) / 0.05); }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgb(var(--ink) / 0.12); border-radius: 8px; }
-::-webkit-scrollbar-track { background: transparent; }

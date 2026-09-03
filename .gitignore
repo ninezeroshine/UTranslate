@@ -8,6 +8,7 @@ app/src-tauri/gen/schemas/
 decisions.tsv
 .claude/
 design/utranslate.html
+design/bento/utranslate-myagkoe-bento.html
 *.log
 
 # ключи подписи обновлений никогда не в репозитории
