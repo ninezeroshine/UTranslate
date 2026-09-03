@@ -88,7 +88,7 @@ Updates itself: checks 15 seconds after launch and every 6 hours; when it finds 
 
 **Translate a selection.** Select text in any program → `Ctrl+Alt+T` → the pill next to your cursor unfolds into a card with the translation. `Esc`, a click outside, or losing focus closes the popup.
 
-**Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation, and a "Replaced: …" toast appears in the tray for 2 seconds. The clipboard ends up exactly as it was before.
+**Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation, and a "Replaced: …" capsule pops up next to the cursor for 2 seconds. The clipboard ends up exactly as it was before.
 
 <div align="center">
 <img src="docs/media/demo-replace.gif" width="720" alt="A Russian sentence in Notepad is replaced with its English translation, with a “Replaced” toast next to the cursor">
