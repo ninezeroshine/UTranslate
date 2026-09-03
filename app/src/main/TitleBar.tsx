@@ -20,7 +20,7 @@ export function TitleBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) 
     <div data-tauri-drag-region className="flex h-14 shrink-0 items-center pl-5 pr-3.5">
       <div className="pointer-events-none flex w-[210px] items-center gap-2.5">
         <div className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-water text-on-water">
-          <Icon name="translate" size={15} />
+          <Icon name="logo" size={15} />
         </div>
         <span className="text-sm font-semibold tracking-[-0.015em]">UTranslate</span>
       </div>

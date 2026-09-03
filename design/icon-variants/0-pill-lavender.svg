@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Принятая иконка 0.1.x: лавандовая капсула со стрелкой. Отвергнута 2026-09-03 вместе
+     с направлением «Капсула» — лаванда не из палитры «туман и вода», форма капсулы прочитана
+     как «ещё одна пилюля». -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d6c8ff"/>
+      <stop offset="0.45" stop-color="#a78bff"/>
+      <stop offset="1" stop-color="#6d4dff"/>
+    </linearGradient>
+    <clipPath id="c"><rect x="40" y="180" width="944" height="664" rx="332"/></clipPath>
+    <radialGradient id="hl" cx="0.28" cy="0" r="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="40" y="180" width="944" height="664" rx="332" fill="url(#g)"/>
+  <rect x="40" y="180" width="944" height="664" rx="332" fill="url(#hl)" clip-path="url(#c)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="118" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M272 512 H660"/>
+    <path d="M596 352 L748 512 L596 672"/>
+  </g>
+</svg>

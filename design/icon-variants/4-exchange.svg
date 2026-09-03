@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Вариант «Обмен»: две встречные стрелки со сдвигом на том же сквиркле. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="w" gradientUnits="userSpaceOnUse" x1="56" y1="56" x2="968" y2="968">
+      <stop offset="0" stop-color="#63B6C6"/>
+      <stop offset="0.42" stop-color="#2F6E7C"/>
+      <stop offset="1" stop-color="#245863"/>
+    </linearGradient>
+  </defs>
+  <path d="M56 512C56 61.3 61.3 56 512 56C962.7 56 968 61.3 968 512C968 962.7 962.7 968 512 968C61.3 968 56 962.7 56 512Z" fill="url(#w)"/>
+  <g fill="#F8FAFA" stroke="#F8FAFA" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M266 376H612" fill="none" stroke-width="110"/>
+    <path d="M584 300L672 376L584 452Z" stroke-width="44"/>
+    <path d="M758 650H412" fill="none" stroke-width="110"/>
+    <path d="M440 574L352 650L440 726Z" stroke-width="44"/>
+  </g>
+</svg>

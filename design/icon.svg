@@ -1,31 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Иконка UTranslate. Капсула-пилюля из направления «Капсула»: лавандовый градиент
-  (#b9a7ff, переменная accent в index.css) и белая стрелка перевода. База светлая, а не тёмная #0e1016,
-  чтобы иконка не пропадала на тёмной панели задач Windows 11.
+  Иконка UTranslate. Сквиркл цвета воды (палитра «туман и вода»: #63B6C6 → #2F6E7C → #245863)
+  и белая реплика (#F8FAFA, цвет карточки) со стрелкой перевода внутри. Реплика — это сам продукт:
+  капсула-попап, которая всплывает у курсора. Заливка средней светлоты, чтобы иконка держалась
+  и на тёмной (#202020), и на светлой (#f3f3f3) панели задач.
+
+  Сквиркл — суперэллипс |x/a|^5 + |y/a|^5 = 1, a = 456, по одной кубике на четверть:
+  контрольные точки подобраны по точке на 45°, расхождение с точной кривой меньше 2 px на 1024.
 
   Пересборка PNG (resvg ставится во временную папку, в репозиторий не тащим):
     npm i @resvg/resvg-js
     node -e "const{Resvg}=require('@resvg/resvg-js'),fs=require('fs');fs.writeFileSync('icon-1024.png',new Resvg(fs.readFileSync('icon.svg'),{fitTo:{mode:'width',value:1024}}).render().asPng())"
   Затем из app/: pnpm tauri icon ../design/icon-1024.png
+  Отвергнутые варианты и причины — icon-variants/README.md.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#d6c8ff"/>
-      <stop offset="0.45" stop-color="#a78bff"/>
-      <stop offset="1" stop-color="#6d4dff"/>
+    <linearGradient id="w" gradientUnits="userSpaceOnUse" x1="56" y1="56" x2="968" y2="968">
+      <stop offset="0" stop-color="#63B6C6"/>
+      <stop offset="0.42" stop-color="#2F6E7C"/>
+      <stop offset="1" stop-color="#245863"/>
     </linearGradient>
-    <clipPath id="c"><rect x="40" y="180" width="944" height="664" rx="332"/></clipPath>
-    <radialGradient id="hl" cx="0.28" cy="0" r="0.9">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
-      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-  <rect x="40" y="180" width="944" height="664" rx="332" fill="url(#g)"/>
-  <rect x="40" y="180" width="944" height="664" rx="332" fill="url(#hl)" clip-path="url(#c)"/>
-  <g fill="none" stroke="#ffffff" stroke-width="118" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M272 512 H660"/>
-    <path d="M596 352 L748 512 L596 672"/>
+  <path d="M56 512C56 61.3 61.3 56 512 56C962.7 56 968 61.3 968 512C968 962.7 962.7 968 512 968C61.3 968 56 962.7 56 512Z" fill="url(#w)"/>
+  <path d="M302 194H722A150 150 0 0 1 872 344V578A150 150 0 0 1 722 728H500L262 864L356 728H302A150 150 0 0 1 152 578V344A150 150 0 0 1 302 194Z" fill="#F8FAFA"/>
+  <!-- Стрелка залита тем же градиентом, что фон: gradientUnits="userSpaceOnUse", поэтому совпадает пиксель в пиксель. -->
+  <g fill="url(#w)" stroke="url(#w)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M339 461H619" fill="none" stroke-width="118"/>
+    <path d="M597 361L709 461L597 561Z" stroke-width="44"/>
   </g>
 </svg>
