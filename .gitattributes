@@ -1,0 +1,5 @@
+# в репозитории всегда LF, на Windows git сам подставит CRLF при выгрузке
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary

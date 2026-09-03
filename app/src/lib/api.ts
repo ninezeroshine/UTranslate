@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
+import { hasTauri } from "./tauri";
 
 export type Alternative = { pos: string; terms: string[] };
 export type Translation = {
@@ -34,6 +36,7 @@ export type Settings = {
   showOriginal: boolean;
   fontSize: number;
 };
+export type UpdateInfo = { version: string; notes: string | null; date: string | null };
 export type HotkeyStatus = { field: "hotkeyPopup" | "hotkeyReplace" | "hotkeyWindow"; error: string | null };
 
 export const api = {
@@ -51,7 +54,13 @@ export const api = {
   hotkeysSuspend: (suspended: boolean) => invoke<void>("hotkeys_suspend", { suspended }),
   autostartGet: () => invoke<boolean>("autostart_get"),
   autostartSet: (enabled: boolean) => invoke<void>("autostart_set", { enabled }),
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  updateAvailable: () => invoke<UpdateInfo | null>("update_available"),
+  updateInstall: () => invoke<void>("update_install"),
 };
+
+/** Вне Tauri (отладка вёрстки в браузере) версии нет. */
+export const appVersion = () => (hasTauri ? getVersion() : Promise.resolve("dev"));
 
 export const LANGS: Record<string, string> = {
   en: "Английский", ru: "Русский", uk: "Украинский", be: "Белорусский", de: "Немецкий", fr: "Французский",

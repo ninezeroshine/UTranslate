@@ -8,13 +8,14 @@ use std::{path::PathBuf, sync::Mutex};
 
 use serde::Serialize;
 use tauri::{
-    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 use engines::{Engines, Translation};
 use settings::Settings;
@@ -25,6 +26,10 @@ pub struct AppState {
     engines: Engines,
     db: db::Db,
     hotkey_status: Mutex<Vec<HotkeyStatus>>,
+    /// Найденное обновление: сюда кладёт проверка, отсюда берёт установка — второй раз в сеть не ходим.
+    update: Mutex<Option<Update>>,
+    /// Пункт трея «Обновить до X.Y.Z»: создаётся выключенным, включается по находке.
+    update_item: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
 /// Статус регистрации одного хоткея — отдаётся фронтенду после каждого сохранения настроек.
@@ -348,13 +353,105 @@ fn autostart_set(app: AppHandle, enabled: bool) -> Result<(), String> {
     r.map_err(|e| e.to_string())
 }
 
+// ---- автообновление ----
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    version: String,
+    notes: Option<String>,
+    date: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+fn update_info(u: &Update) -> UpdateInfo {
+    UpdateInfo { version: u.version.clone(), notes: u.body.clone(), date: u.date.map(|d| d.date().to_string()) }
+}
+
+/// Текст ошибки апдейтера для пользователя: сеть отличаем от остального.
+fn update_error(e: tauri_plugin_updater::Error) -> String {
+    let s = e.to_string().to_lowercase();
+    if ["error sending request", "dns", "connect", "timed out", "timeout"].iter().any(|k| s.contains(k)) {
+        "Нет соединения".to_string()
+    } else {
+        format!("Не удалось проверить обновления: {e}")
+    }
+}
+
+fn tray_show_update(app: &AppHandle, version: &str) {
+    if let Some(item) = app.state::<AppState>().update_item.lock().unwrap().as_ref() {
+        let _ = item.set_text(format!("Обновить до {version}"));
+        let _ = item.set_enabled(true);
+    }
+}
+
+/// Спрашивает GitHub Releases и запоминает найденное в состоянии.
+async fn find_update(app: &AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let found = app.updater().map_err(update_error)?.check().await.map_err(update_error)?;
+    let info = found.as_ref().map(update_info);
+    *app.state::<AppState>().update.lock().unwrap() = found;
+    if let Some(i) = &info {
+        tray_show_update(app, &i.version);
+    }
+    Ok(info)
+}
+
+async fn do_install(app: AppHandle) -> Result<(), String> {
+    let update = app.state::<AppState>().update.lock().unwrap().clone();
+    let Some(update) = update else { return Err("Обновление не найдено".into()) };
+    let win = app.clone();
+    let mut downloaded: u64 = 0;
+    let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
+    update
+        .download_and_install(
+            move |chunk, total| {
+                downloaded += chunk as u64;
+                // Событие на каждый чанк забивает мост: не чаще 10 раз в секунду, но последний кадр отдаём всегда.
+                if last.elapsed() >= std::time::Duration::from_millis(100) || Some(downloaded) == total {
+                    last = std::time::Instant::now();
+                    let _ = win.emit_to("main", "update:progress", UpdateProgress { downloaded, total });
+                }
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| format!("Не удалось установить обновление: {e}"))?;
+    // На Windows установщик перезапускает приложение сам и сюда мы не доходим; строка нужна остальным платформам.
+    app.restart()
+}
+
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    find_update(&app).await
+}
+
+/// Что нашла фоновая проверка — чтобы UI не ходил в сеть при открытии настроек.
+#[tauri::command]
+fn update_available(state: State<AppState>) -> Option<UpdateInfo> {
+    state.update.lock().unwrap().as_ref().map(update_info)
+}
+
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), String> {
+    do_install(app).await
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItemBuilder::with_id("open", "Открыть UTranslate").build(app)?;
     let enabled = CheckMenuItemBuilder::with_id("enabled", "Хоткеи включены").checked(true).build(app)?;
+    // Пункт обновления создаём заранее выключенным: добавить его в меню на лету нельзя.
+    let update = MenuItemBuilder::with_id("update", "Обновлений нет").enabled(false).build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Выход").build(app)?;
     let menu = MenuBuilder::new(app)
-        .items(&[&open, &enabled, &PredefinedMenuItem::separator(app)?, &quit])
+        .items(&[&open, &enabled, &PredefinedMenuItem::separator(app)?, &update, &quit])
         .build()?;
+    app.state::<AppState>().update_item.lock().unwrap().replace(update.clone());
     let enabled_item = enabled.clone();
     TrayIconBuilder::with_id("tray")
         .icon(app.default_window_icon().cloned().expect("иконка"))
@@ -373,6 +470,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 } else {
                     let _ = app.global_shortcut().unregister_all();
                 }
+            }
+            "update" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = do_install(app).await {
+                        eprintln!("обновление: {e}");
+                    }
+                });
             }
             "quit" => app.exit(0),
             _ => {}
@@ -393,6 +498,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(on_shortcut).build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             translate_text,
             copy_text,
@@ -408,6 +514,9 @@ pub fn run() {
             hotkeys_suspend,
             autostart_get,
             autostart_set,
+            update_check,
+            update_available,
+            update_install,
         ])
         .setup(|app| {
             let settings_path = app.path().app_config_dir()?.join("settings.json");
@@ -421,8 +530,30 @@ pub fn run() {
                     eprintln!("хоткей {}: {e}", st.field);
                 }
             }
-            app.manage(AppState { settings: Mutex::new(settings.clone()), settings_path, engines: Engines::new(), db, hotkey_status: Mutex::new(status) });
+            app.manage(AppState {
+                settings: Mutex::new(settings.clone()),
+                settings_path,
+                engines: Engines::new(),
+                db,
+                hotkey_status: Mutex::new(status),
+                update: Mutex::new(None),
+                update_item: Mutex::new(None),
+            });
             build_tray(app.handle())?;
+            // Фоновая проверка обновлений: через 15 с после старта, дальше раз в 6 часов.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                loop {
+                    match find_update(&handle).await {
+                        Ok(Some(info)) => { let _ = handle.emit_to("main", "update:available", info); }
+                        Ok(None) => {}
+                        // В dev-режиме релиза может не быть — пользователю про это знать незачем.
+                        Err(e) => eprintln!("автопроверка обновлений: {e}"),
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(6 * 3600)).await;
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

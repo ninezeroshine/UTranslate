@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./app/src-tauri -> target"
+
+      - name: Install deps
+        run: pnpm install
+        working-directory: app
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit -p tsconfig.json
+        working-directory: app
+
+      - name: Cargo check
+        run: cargo check
+        working-directory: app/src-tauri
+
+      - name: Cargo test
+        run: cargo test
+        working-directory: app/src-tauri

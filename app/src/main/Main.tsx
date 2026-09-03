@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { listen, win } from "../lib/tauri";
-import { api, engineLabel, engineName, errorText, langName, speak, type Entry, type HotkeyStatus, type Settings, type TranslateResult } from "../lib/api";
+import { api, appVersion, engineLabel, engineName, errorText, langName, speak, type Entry, type HotkeyStatus, type Settings, type TranslateResult, type UpdateInfo } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion, type Transition } from "motion/react";
 
@@ -414,6 +414,94 @@ function HotkeyField({ value, status, onCommit }: { value: string; status?: Hotk
   );
 }
 
+// ---- о программе и обновления ----
+
+type Phase = "idle" | "checking" | "none" | "found" | "downloading" | "installing" | "error";
+
+function About() {
+  const reduce = useReducedMotion();
+  const [version, setVersion] = useState("dev");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number | null }>({ done: 0, total: null });
+  const [error, setError] = useState("");
+  const [installFailed, setInstallFailed] = useState(false);
+
+  useEffect(() => {
+    appVersion().then(setVersion).catch(() => undefined);
+    // Фоновая проверка могла найти обновление до того, как открыли настройки.
+    api.updateAvailable().then((i) => { if (i) { setInfo(i); setPhase((p) => (p === "idle" ? "found" : p)); } }).catch(() => undefined);
+    const un = listen<UpdateInfo>("update:available", ({ payload }) => {
+      setInfo(payload);
+      setPhase((p) => (p === "downloading" || p === "installing" ? p : "found"));
+    });
+    const up = listen<{ downloaded: number; total: number | null }>("update:progress", ({ payload }) => {
+      setProgress({ done: payload.downloaded, total: payload.total });
+      // Скачали всё — дальше работает установщик, окно вот-вот закроется.
+      if (payload.total && payload.downloaded >= payload.total) setPhase("installing");
+    });
+    return () => { un.then((f) => f()); up.then((f) => f()); };
+  }, []);
+
+  async function check() {
+    setPhase("checking"); setError(""); setInstallFailed(false);
+    try {
+      const found = await api.updateCheck();
+      setInfo(found);
+      if (found) { setPhase("found"); return; }
+      setPhase("none");
+      window.setTimeout(() => setPhase((p) => (p === "none" ? "idle" : p)), 3000);
+    } catch (e) { setError(errorText(e)); setPhase("error"); }
+  }
+
+  async function install() {
+    setPhase("downloading"); setProgress({ done: 0, total: null }); setError("");
+    try { await api.updateInstall(); }
+    catch (e) { setError(errorText(e)); setInstallFailed(true); setPhase("error"); }
+  }
+
+  const pct = progress.total ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : null;
+  const anim = {
+    initial: { opacity: 0, scale: reduce ? 1 : 0.97 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: reduce ? 1 : 0.97 },
+    transition: { duration: reduce ? 0.15 : 0.18, ease: EASE_OUT },
+  };
+
+  return (
+    <Row label={`UTranslate ${version}`}>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={phase} {...anim} className="flex items-center gap-3">
+          {phase === "idle" && <button className="pill" onClick={check}>Проверить обновления</button>}
+          {phase === "checking" && <span className="pill"><span className="dot pulse" />Проверяем…</span>}
+          {phase === "none" && <span className="pill text-emerald-300"><Icon name="check" size={15} />Установлена последняя версия</span>}
+          {phase === "found" && (
+            <>
+              <span className="text-sm text-white/70">Доступна {info?.version}</span>
+              <button className="pill active" onClick={install}>Обновить</button>
+            </>
+          )}
+          {phase === "downloading" && (
+            <span className="pill relative overflow-hidden">
+              {pct === null ? "Загрузка" : `Загрузка ${pct}%`}
+              {pct === null
+                ? <span className="sk absolute bottom-0 left-0 h-1 w-full rounded-none" />
+                : <span className="absolute bottom-0 left-0 h-1 bg-[var(--accent)]" style={{ width: `${pct}%`, transition: "width 150ms linear" }} />}
+            </span>
+          )}
+          {phase === "installing" && <span className="pill"><span className="dot pulse" />Перезапуск…</span>}
+          {phase === "error" && (
+            <>
+              <span className="text-sm text-red-300">{error}</span>
+              <button className="pill" onClick={installFailed ? install : check}>Повторить</button>
+            </>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </Row>
+  );
+}
+
 function SettingsPanel() {
   const [s, setS] = useState<Settings | null>(null);
   const [autostart, setAutostart] = useState(false);
@@ -484,6 +572,8 @@ function SettingsPanel() {
       <Row label="Размер текста в попапе">
         <input type="number" min={12} max={24} className="field w-24" value={s.fontSize} onChange={(e) => set("fontSize", Number(e.target.value) || 16)} />
       </Row>
+      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-white/40">О программе</div>
+      <About />
     </div>
   );
 }
