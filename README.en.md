@@ -31,7 +31,9 @@ Select text in any program, press `Ctrl+Alt+T` — a capsule with the translatio
 </tr>
 </table>
 
-<div align="center"><img src="docs/media/morph.gif" width="480" alt="Pill unfolding into a translation card"></div>
+<div align="center">
+<img src="docs/media/demo-popup.gif" width="760" alt="A paragraph is selected on a page; the hotkey brings up a pill next to the cursor that unfolds into a card with the translation">
+</div>
 
 ## Features
 
@@ -50,10 +52,15 @@ Select text in any program, press `Ctrl+Alt+T` — a capsule with the translatio
 ## Screenshots
 
 <table>
-<tr><th>Translate (light)</th><th>History (dark)</th></tr>
+<tr><th>Translate (light)</th><th>Translate (dark)</th></tr>
 <tr>
 <td><img src="docs/media/window-translate-light.png" alt="Main window, Translate tab, light theme"></td>
+<td><img src="docs/media/window-translate-dark.png" alt="Main window, Translate tab, dark theme"></td>
+</tr>
+<tr><th>History (dark)</th><th>Favorites (light)</th></tr>
+<tr>
 <td><img src="docs/media/window-history-dark.png" alt="Main window, History tab, dark theme"></td>
+<td><img src="docs/media/window-favorites-light.png" alt="Main window, Favorites tab, light theme"></td>
 </tr>
 <tr><th colspan="2">Settings (dark)</th></tr>
 <tr><td colspan="2"><img src="docs/media/window-settings-dark.png" alt="Main window, Settings tab, dark theme"></td></tr>
@@ -82,6 +89,10 @@ Updates itself: checks 15 seconds after launch and every 6 hours; when it finds 
 **Translate a selection.** Select text in any program → `Ctrl+Alt+T` → the pill next to your cursor unfolds into a card with the translation. `Esc`, a click outside, or losing focus closes the popup.
 
 **Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation, and a "Replaced: …" toast appears in the tray for 2 seconds. The clipboard ends up exactly as it was before.
+
+<div align="center">
+<img src="docs/media/demo-replace.gif" width="720" alt="A Russian sentence in Notepad is replaced with its English translation, with a “Replaced” toast next to the cursor">
+</div>
 
 **Open the window and translate manually.** `Ctrl+Alt+W` opens the main window with Translate, History, Favorites, and Settings tabs; if you had a selection, it's dropped into the source field.
 
