@@ -18,3 +18,7 @@ design/utranslate.html
 # системное
 .DS_Store
 Thumbs.db
+
+# внутренние документы: требования и правила анимаций
+PRD.md
+app/docs/
