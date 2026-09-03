@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { api, errorText, type Entry, type Settings } from "../lib/api";
 import { Icon } from "../lib/icons";
-import { Badge, Card, Field, IconButton, Pill } from "../ui";
+import { Badge, Card, Field, IconButton, Keys, Pill } from "../ui";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const SEARCH_MS = 150;
@@ -32,21 +32,6 @@ function fmtTime(ts: number, group: Group) {
   return group === "older"
     ? d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
     : d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
-
-/** «Ctrl+Alt+T» кейкапами; Super показываем как Win — так короче для Windows. */
-function Keys({ combo }: { combo: string }) {
-  const parts = combo.split("+").map((p) => (p === "Super" ? "Win" : p));
-  return (
-    <div className="flex items-center gap-1.5">
-      {parts.map((p, i) => (
-        <span key={p} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-xs text-ink-3">+</span>}
-          <span className="key">{p}</span>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function Empty({ icon, title, hint, children }: { icon: "search" | "star"; title: string; hint: string; children?: ReactNode }) {
