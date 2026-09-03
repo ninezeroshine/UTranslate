@@ -540,6 +540,15 @@ pub fn run() {
                 update_item: Mutex::new(None),
             });
             build_tray(app.handle())?;
+            // Путь в записи автозапуска протухает при переименовании или переносе exe
+            // (0.1.1 ставился как app.exe). enable() перезаписывает значение текущим путём.
+            // В dev-сборке не трогаем: иначе каждый `pnpm tauri dev` уводит автозапуск на target/debug.
+            let al = app.autolaunch();
+            if !cfg!(debug_assertions) && al.is_enabled().unwrap_or(false) {
+                if let Err(e) = al.enable() {
+                    eprintln!("автозапуск: не удалось обновить путь: {e}");
+                }
+            }
             // Фоновая проверка обновлений: через 15 с после старта, дальше раз в 6 часов.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
