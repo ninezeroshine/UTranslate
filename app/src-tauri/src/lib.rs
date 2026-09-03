@@ -225,6 +225,12 @@ fn run_action(app: AppHandle, action: Action, s: Settings) {
                     let lead = &text[..text.len() - text.trim_start().len()];
                     let trail = &text[text.trim_end().len()..];
                     capture::paste_text(&app, &format!("{lead}{}{trail}", r.translation.text));
+                    // Сработала вставка или нет (страница, PDF, защищённое поле), приложение
+                    // не знает — поэтому подтверждаем всегда. paste_text уже вернул буфер обмена,
+                    // так что тост показывается после вставки и после восстановления буфера.
+                    if let Err(e) = popup::show_toast(&app, &toast_text(&r.translation.text)) {
+                        eprintln!("тост: {e}");
+                    }
                 }
                 Err(message) => {
                     // Оригинал не тронут; ошибка показывается тем же попапом.
@@ -235,6 +241,33 @@ fn run_action(app: AppHandle, action: Action, s: Settings) {
                 }
             }
         }
+    }
+}
+
+/// Первые 40 символов перевода для тоста: любые пробелы и переносы схлопываются в один пробел.
+fn toast_text(s: &str) -> String {
+    let one = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut rest = one.chars();
+    let head: String = rest.by_ref().take(40).collect();
+    if rest.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
+
+#[cfg(test)]
+mod toast_tests {
+    use super::toast_text;
+
+    #[test]
+    fn collapses_whitespace_and_cuts_at_40() {
+        assert_eq!(toast_text("две\nстроки"), "две строки");
+        assert_eq!(toast_text("  край  "), "край");
+        // 45 кириллических символов: режем по символам, а не по байтам.
+        let long = "я".repeat(45);
+        assert_eq!(toast_text(&long), format!("{}…", "я".repeat(40)));
+        assert_eq!(toast_text(&"я".repeat(40)).chars().count(), 40);
     }
 }
 
@@ -331,6 +364,8 @@ fn settings_get(state: State<AppState>) -> Settings {
 fn settings_set(app: AppHandle, state: State<AppState>, settings: Settings) -> Result<Vec<HotkeyStatus>, String> {
     settings::save(&state.settings_path, &settings)?;
     *state.settings.lock().unwrap() = settings.clone();
+    // Попап держит свою копию настроек с момента загрузки — тема и размер шрифта доезжают сюда.
+    let _ = app.emit_to("popup", "settings:changed", settings.clone());
     let status = register_hotkeys(&app, &settings);
     *state.hotkey_status.lock().unwrap() = status.clone();
     Ok(status)

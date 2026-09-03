@@ -4,14 +4,18 @@ import { listen, win } from "../lib/tauri";
 import { AnimatePresence, motion, useReducedMotion, type Transition, type Variants } from "motion/react";
 import { api, engineLabel, errorText, speak, type Settings, type TranslateResult } from "../lib/api";
 import { Icon } from "../lib/icons";
+import { applyTheme } from "../lib/theme";
 
 type Status = "loading" | "result" | "error" | "input";
 type Show = { text: string; target: string; detected: string | null; clipboardReplaced: boolean };
+/** Подтверждение замены текста: пилюля на 2 секунды. overlay — попап уже на экране, окно не наше. */
+type Toast = { text: string; overlay: boolean };
 
 // Геометрия — см. docs/motion.md. MARGIN совпадает с src-tauri/src/popup.rs.
 const CARD_W = 430;
 const CARD_H_DEFAULT = 260;
 const MARGIN = 64;
+const TOAST_MS = 2000;
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const T_ENTER: Transition = { duration: 0.22, ease: EASE_OUT };
@@ -60,6 +64,9 @@ export default function Popup() {
   const [hidden, setHidden] = useState(true);
   const [closing, setClosing] = useState(false);
   const [session, setSession] = useState(0);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [toastOut, setToastOut] = useState(false);
+  const toastTimer = useRef<number | undefined>(undefined);
 
   const pinnedRef = useRef(false);
   pinnedRef.current = pinned;
@@ -82,7 +89,28 @@ export default function Popup() {
     setClosing(true);
   }
 
+  /** Тост исчезает opacity за --dur-fast, потом прячем окно. Своё окно тоста — прячем целиком,
+   *  пилюлю поверх открытого попапа — только её. */
+  function handleToast(t: Toast) {
+    window.clearTimeout(toastTimer.current);
+    setToast(t);
+    setToastOut(false);
+    if (!t.overlay) setHidden(false);
+    toastTimer.current = window.setTimeout(() => {
+      setToastOut(true);
+      toastTimer.current = window.setTimeout(() => {
+        setToast(null);
+        setToastOut(false);
+        if (!t.overlay) hideNow();
+      }, 180);
+    }, TOAST_MS);
+  }
+
   function handleShow(payload: Show) {
+    // Обычный поток сильнее тоста: таймер отменяется, пилюля пропадает сразу.
+    window.clearTimeout(toastTimer.current);
+    setToast(null);
+    setToastOut(false);
     setSession((n) => n + 1);
     setHidden(false);
     setClosing(false);
@@ -105,11 +133,14 @@ export default function Popup() {
   }
 
   useEffect(() => {
-    api.getSettings().then(setSettings).catch(() => undefined);
+    api.getSettings().then((s) => { setSettings(s); applyTheme(s.theme); }).catch(() => undefined);
     const subs = [
       listen<Show>("popup:show", ({ payload }) => handleShow(payload)),
       listen<TranslateResult>("popup:result", ({ payload }) => applyResult(payload)),
       listen<{ message: string }>("popup:error", ({ payload }) => handleError(payload.message)),
+      listen<Toast>("popup:toast", ({ payload }) => handleToast(payload)),
+      // Настройки правятся в главном окне — попап узнаёт о смене темы и шрифта отсюда.
+      listen<Settings>("settings:changed", ({ payload }) => { setSettings(payload); applyTheme(payload.theme); }),
       win?.onFocusChanged(({ payload: focused }) => { if (!focused && !pinnedRef.current) hideNow(); }),
     ];
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") hideNow(); };
@@ -165,7 +196,9 @@ export default function Popup() {
       pendingShrinkRef.current = { w: targetW, h: targetH };
     }
   }
-  useEffect(() => { if (!hidden) fitWindow(box.w, box.h); }, [box.w, box.h, hidden]);
+  // Тост в своём окне живёт в размере, который выставил Rust, — карточку тут не меряем.
+  const soloToast = toast !== null && !toast.overlay;
+  useEffect(() => { if (!hidden && !soloToast) fitWindow(box.w, box.h); }, [box.w, box.h, hidden, soloToast]);
 
   function onCapsuleAnimationComplete() {
     if (closing) { setClosing(false); hideNow(); return; }
@@ -214,9 +247,30 @@ export default function Popup() {
 
   if (hidden) return null;
 
+  // Пилюля тоста — та же капсула .glass, что и состояние загрузки: одно существо, разное содержимое.
+  // Появление мгновенное (действие с клавиатуры), уход — только opacity, поэтому reduced-motion не трогаем.
+  const toastNode = toast && (
+    <motion.div
+      className="glass flex items-center gap-2"
+      style={{
+        width: "fit-content", height: 46, borderRadius: 999, padding: "0 16px",
+        fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+        ...(toast.overlay ? { position: "absolute" as const, left: MARGIN + 12, top: MARGIN + 12, zIndex: 2, pointerEvents: "none" as const } : {}),
+      }}
+      initial={false}
+      animate={{ opacity: toastOut ? 0 : 1 }}
+      transition={{ duration: 0.18, ease: EASE_OUT }}
+    >
+      <Icon name="check" size={15} className="text-accent" />
+      Заменено: {toast.text}
+    </motion.div>
+  );
+
+  if (soloToast) return <div style={{ padding: MARGIN }} className="h-full w-full">{toastNode}</div>;
+
   return (
     <div
-      style={{ padding: MARGIN }}
+      style={{ padding: MARGIN, position: "relative" }}
       className="h-full w-full"
       onMouseDown={(e) => { if (e.target === e.currentTarget) hideNow(); }}
     >
@@ -234,7 +288,7 @@ export default function Popup() {
               <span className={`dot ${status === "loading" ? "pulse" : ""}`} />
               <span className="tracking-wide">{(detected ?? "auto").toUpperCase()}</span>
               <Icon name="arrow" size={14} className="opacity-45" />
-              <button className="tracking-wide text-[var(--accent)]" onClick={switchTarget} title="Сменить целевой язык">
+              <button className="tracking-wide text-accent" onClick={switchTarget} title="Сменить целевой язык">
                 {target.toUpperCase()}
               </button>
             </div>
@@ -249,7 +303,7 @@ export default function Popup() {
                   style={{ transformOrigin: "right center" }}
                   className="flex flex-1 items-center gap-2.5"
                 >
-                  <span className="max-w-[150px] truncate text-xs text-white/45" title={result ? engineLabel(result) : undefined}>
+                  <span className="max-w-[150px] truncate text-xs text-ink/45" title={result ? engineLabel(result) : undefined}>
                     {status === "loading" ? "переводим…" : result ? engineLabel(result) : ""}
                   </span>
                   <div className="flex-1" />
@@ -276,7 +330,7 @@ export default function Popup() {
                 />
               )}
 
-              {clipNote && <div className="px-2 text-xs text-amber-200/80">Буфер обмена содержал не текст и был заменён.</div>}
+              {clipNote && <div className="px-2 text-xs text-warn/80">Буфер обмена содержал не текст и был заменён.</div>}
 
               <div style={{ position: "relative" }}>
                 <AnimatePresence mode="popLayout" initial={false}>
@@ -288,7 +342,7 @@ export default function Popup() {
 
                   {status === "error" && (
                     <motion.div key="error" variants={fx()} initial="hidden" animate="visible" exit="exit" className="flex flex-col gap-3 px-2 py-1">
-                      <div className="text-[15px] leading-relaxed text-white/85">{error}</div>
+                      <div className="text-[15px] leading-relaxed text-ink/85">{error}</div>
                       <div className="flex gap-2">
                         <button className="pill" onClick={() => translateNow(currentText, target)}><Icon name="refresh" size={15} className="opacity-70" />Повторить</button>
                         <button className="pill" onClick={() => api.openMain(currentText || undefined)}>Открыть окно</button>
@@ -307,7 +361,7 @@ export default function Popup() {
                               initial="hidden"
                               animate="visible"
                               exit="exit"
-                              className="select-text border-b border-white/10 pb-2 text-[13px] leading-relaxed text-white/50"
+                              className="select-text border-b border-ink/10 pb-2 text-[13px] leading-relaxed text-ink/50"
                               style={{ maxHeight: 120, overflow: "auto" }}
                             >
                               {source}
@@ -320,12 +374,12 @@ export default function Popup() {
                               <span className="select-text text-2xl font-medium tracking-tight">{currentText.trim()}</span>
                               <button className="rb h-7! w-7!" onClick={() => speak(currentText, result.detected)} title="Озвучить оригинал"><Icon name="speaker" size={14} /></button>
                             </div>
-                            <div className="select-text text-lg font-medium text-[var(--accent)]">{result.text}</div>
+                            <div className="select-text text-lg font-medium text-accent">{result.text}</div>
                             {result.alternatives.length > 0 && (
-                              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                              <div className="flex flex-col gap-1.5 border-t border-ink/10 pt-2">
                                 {result.alternatives.slice(0, 4).map((a) => (
                                   <div key={a.pos} className="flex flex-wrap items-center gap-1.5">
-                                    <span className="px-1 text-[11px] font-medium uppercase tracking-wider text-white/40">{a.pos}</span>
+                                    <span className="px-1 text-[11px] font-medium uppercase tracking-wider text-ink/40">{a.pos}</span>
                                     {a.terms.slice(0, 6).map((t) => (
                                       <button key={t} className="chip" onClick={() => api.copy(t)} title="Скопировать">{t}</button>
                                     ))}
@@ -358,7 +412,7 @@ export default function Popup() {
                         <button className={`rb ${favorite ? "active" : ""} ${starPop ? "star-pop" : ""}`} onClick={toggleFavorite} title="В избранное" disabled={!result.historyId}><Icon name="star" /></button>
                         <div className="flex-1" />
                         {!inputMode && (
-                          <button className="flex items-center gap-1.5 pr-2 text-xs text-white/50 hover:text-white/80" onClick={() => setShowOriginal((s) => !s)}>
+                          <button className="flex items-center gap-1.5 pr-2 text-xs text-ink/50 hover:text-ink/80" onClick={() => setShowOriginal((s) => !s)}>
                             Оригинал <Icon name="chevron" size={12} className={`chevron ${showOriginal ? "rotate-180" : ""}`} />
                           </button>
                         )}
@@ -371,6 +425,7 @@ export default function Popup() {
           )}
         </div>
       </motion.div>
+      {toast?.overlay && toastNode}
     </div>
   );
 }

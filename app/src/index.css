@@ -2,9 +2,26 @@
 @import "@heroui/styles";
 @import "@fontsource-variable/onest";
 
+/* Тема переключается атрибутом html[data-theme] — тем же, что читает @heroui/styles
+   (dist/themes/default/variables.css: [data-theme="light"] / [data-theme="dark"]).
+   Тёмные значения ниже — исходные, до появления светлой темы.
+   --ink и --fg заданы триплетами: цвет наложений и цвет текста меняются вместе с темой,
+   а прозрачность остаётся на месте использования, поэтому оттенков не становится больше. */
 :root {
+  color-scheme: dark;
+  --ink: 255 255 255;                              /* заливки, границы, полупрозрачный текст */
+  --fg: 244 244 248;                               /* основной текст */
+  --bg: #0e1016;                                   /* фон окна */
+  --surface: rgba(20, 22, 30, 0.55);               /* карточка в главном окне */
+  --glass: rgba(14, 16, 22, 0.86);                 /* капсула попапа */
   --accent: #b9a7ff;
   --accent-glow: rgba(185, 167, 255, 0.9);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 48px rgba(185, 167, 255, 0.1);
+  --shadow-card: 0 20px 50px rgba(0, 0, 0, 0.35);
+  --ok: #6ee7b7;
+  --err: #fca5a5;
+  --warn: #fde68a;
+
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --dur-press: 160ms;
@@ -12,12 +29,41 @@
   --dur-base: 220ms;
 }
 
+/* Светлая: матовое белое стекло на почти белом фоне, тени мягче и холоднее.
+   Акцент другой: лаванда #b9a7ff на белом даёт 1.7:1 и нечитаема — берём тёмный конец
+   градиента иконки #6d4dff (5.0:1 и как текст на белом, и как фон под белым текстом). */
+html[data-theme="light"] {
+  color-scheme: light;
+  --ink: 22 22 29;
+  --fg: 22 22 29;
+  --bg: #f5f5fa;
+  --surface: rgba(255, 255, 255, 0.72);
+  --glass: rgba(255, 255, 255, 0.9);
+  --accent: #6d4dff;
+  --accent-glow: rgba(109, 77, 255, 0.45);
+  --shadow-pop: 0 16px 40px rgba(46, 38, 88, 0.16), 0 2px 8px rgba(46, 38, 88, 0.1), 0 0 48px rgba(109, 77, 255, 0.1);
+  --shadow-card: 0 20px 50px rgba(46, 38, 88, 0.1);
+  --ok: #047857;
+  --err: #b91c1c;
+  --warn: #92400e;
+}
+
+/* inline — чтобы утилиты подставляли var(--ink) напрямую и переключались без пересборки */
+@theme inline {
+  --color-ink: rgb(var(--ink));
+  --color-fg: rgb(var(--fg));
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-err: var(--err);
+  --color-warn: var(--warn);
+}
+
 html, body, #root { height: 100%; margin: 0; }
 body {
   font-family: "Onest Variable", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  color: #f4f4f8;
-  background: #0e1016;
+  color: rgb(var(--fg));
+  background: var(--bg);
   user-select: none;
   overflow: hidden;
   cursor: default;
@@ -26,17 +72,17 @@ html[data-surface="popup"], html[data-surface="popup"] body { background: transp
 textarea, input, .select-text { user-select: text; cursor: text; }
 button { cursor: default; }
 
-/* ponytail: без настоящего блюра рабочего стола — WebView2 не размывает то, что под окном; апгрейд — акрил через window-vibrancy плюс точный размер окна */
+/* Белые блики (градиент сверху, inset 0 1px 0) остаются белыми в обеих темах: в светлой они
+   ложатся на белое стекло и просто не видны — это дешевле отдельного набора переменных.
+   ponytail: без настоящего блюра рабочего стола — WebView2 не размывает то, что под окном; апгрейд — акрил через window-vibrancy плюс точный размер окна */
 .glass {
   position: relative;
-  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), rgba(14, 16, 22, 0.86);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), var(--glass);
   box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.12),
+    inset 0 0 0 1px rgb(var(--ink) / 0.12),
     inset 0 1px 0 rgba(255,255,255,0.22),
-    0 16px 40px rgba(0,0,0,0.38),
-    0 2px 8px rgba(0,0,0,0.25),
-    0 0 48px rgba(185,167,255,0.10);
-  color: #f4f4f8;
+    var(--shadow-pop);
+  color: rgb(var(--fg));
 }
 .glass::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -44,8 +90,8 @@ button { cursor: default; }
 }
 .card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%), rgba(20, 22, 30, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 1px 0 rgba(255,255,255,0.16), 0 20px 50px rgba(0,0,0,0.35);
+  background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%), var(--surface);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.09), inset 0 1px 0 rgba(255,255,255,0.16), var(--shadow-card);
 }
 .card::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -56,34 +102,44 @@ button { cursor: default; }
     radial-gradient(55% 45% at 8% 0%, rgba(185,167,255,0.22), rgba(185,167,255,0) 65%),
     radial-gradient(45% 40% at 100% 100%, rgba(90,211,200,0.14), rgba(90,211,200,0) 65%),
     radial-gradient(35% 30% at 60% 30%, rgba(255,170,140,0.08), rgba(255,170,140,0) 70%),
-    #0e1016;
+    var(--bg);
+}
+html[data-theme="light"] .mesh {
+  background:
+    radial-gradient(55% 45% at 8% 0%, rgba(150,120,255,0.16), rgba(150,120,255,0) 65%),
+    radial-gradient(45% 40% at 100% 100%, rgba(40,190,180,0.13), rgba(40,190,180,0) 65%),
+    radial-gradient(35% 30% at 60% 30%, rgba(255,150,110,0.06), rgba(255,150,110,0) 70%),
+    var(--bg);
 }
 
 .pill {
   display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12);
-  font-size: 13px; font-weight: 500; color: #f4f4f8; white-space: nowrap;
+  background: rgb(var(--ink) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.10), inset 0 1px 0 rgba(255,255,255,0.12);
+  font-size: 13px; font-weight: 500; color: rgb(var(--fg)); white-space: nowrap;
   transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
 }
-.pill:hover { background: rgba(255,255,255,0.13); }
-.pill:active { transform: scale(0.97); background: rgba(255,255,255,0.18); }
-.pill.active { background: rgba(185,167,255,0.12); box-shadow: inset 0 0 0 1px rgba(185,167,255,0.55), inset 0 1px 0 rgba(255,255,255,0.12); }
+.pill:hover { background: rgb(var(--ink) / 0.13); }
+.pill:active { transform: scale(0.97); background: rgb(var(--ink) / 0.18); }
+.pill.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 1px 0 rgba(255,255,255,0.12);
+}
 .rb {
   width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); color: rgba(244,244,248,0.72);
+  background: rgb(var(--ink) / 0.06); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08); color: rgb(var(--fg) / 0.72);
   transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease, color 150ms ease;
 }
-.rb:hover { background: rgba(255,255,255,0.12); color: #f4f4f8; }
+.rb:hover { background: rgb(var(--ink) / 0.12); color: rgb(var(--fg)); }
 .rb:active { transform: scale(0.97); }
-.rb.active { color: var(--accent); background: rgba(185,167,255,0.14); }
+.rb.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .chip {
   display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 999px;
-  background: rgba(255,255,255,0.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-  font-size: 13px; color: rgba(244,244,248,0.9); white-space: nowrap;
+  background: rgb(var(--ink) / 0.07); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08);
+  font-size: 13px; color: rgb(var(--fg) / 0.9); white-space: nowrap;
   transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease;
 }
-.chip:hover { background: rgba(255,255,255,0.13); }
+.chip:hover { background: rgb(var(--ink) / 0.13); }
 .chip:active { transform: scale(0.97); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); flex-shrink: 0; }
 @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.55); opacity: 0.45; } }
@@ -93,34 +149,49 @@ button { cursor: default; }
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
 .sk {
   height: 12px; border-radius: 6px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 100%);
+  background: linear-gradient(90deg, rgb(var(--ink) / 0.08) 0%, rgb(var(--ink) / 0.18) 50%, rgb(var(--ink) / 0.08) 100%);
   background-size: 400px 100%; animation: shimmer 1.4s linear infinite;
 }
 .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .seg {
   position: relative; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  color: rgba(244,244,248,0.55); white-space: nowrap;
+  color: rgb(var(--fg) / 0.55); white-space: nowrap;
   transition: transform var(--dur-press) var(--ease-out), color 150ms ease;
 }
-.seg:hover { color: #f4f4f8; }
+.seg:hover { color: rgb(var(--fg)); }
 .seg:active { transform: scale(0.97); }
-.seg.active { color: #f4f4f8; }
-.wc { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: rgba(244,244,248,0.6); transition: background-color 120ms ease; }
-.wc:hover { background: rgba(255,255,255,0.10); color: #f4f4f8; }
+.seg.active { color: rgb(var(--fg)); }
+/* оправа сегментных вкладок: шапка главного окна и переключатель темы */
+.segbar { border-radius: 999px; background: rgb(var(--ink) / 0.05); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.07); }
+.wc { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: rgb(var(--fg) / 0.6); transition: background-color 120ms ease; }
+.wc:hover { background: rgb(var(--ink) / 0.10); color: rgb(var(--fg)); }
 .wc.close:hover { background: rgba(255,80,90,0.5); }
+html[data-theme="light"] .wc.close:hover { color: #fff; }
 /* подложка активной вкладки — отдельный слой под текстом, motion.div с layoutId в Main.tsx */
-.tab-pill { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14); }
+.tab-pill { position: absolute; inset: 0; border-radius: 999px; background: rgb(var(--ink) / 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14); }
+/* круглая кнопка «поменять местами» между колонками перевода */
+.swap {
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)), rgba(24,26,36,0.9);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px rgba(0,0,0,0.45);
+  color: rgba(244,244,248,0.9);
+}
+html[data-theme="light"] .swap {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgb(22 22 29 / 0.10), 0 8px 24px rgba(46,38,88,0.16);
+  color: rgb(22 22 29 / 0.75);
+}
 .chevron { transition: transform 200ms var(--ease-out); }
 .toggle-track { transition: background-color 200ms ease; }
 .toggle-thumb { transition: transform 200ms var(--ease-out); transform: translateX(0); }
 .toggle-thumb.on { transform: translateX(20px); }
 .field {
-  height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13px; color: #f4f4f8;
-  background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); outline: none;
+  height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13px; color: rgb(var(--fg));
+  background: rgb(var(--ink) / 0.06); box-shadow: inset 0 0 0 1px rgb(var(--ink) / 0.08); outline: none;
 }
-.field:focus { box-shadow: inset 0 0 0 1px rgba(185,167,255,0.6); }
-select.field option { background: #171a22; color: #f4f4f8; }
-.row:hover { background: rgba(255,255,255,0.05); }
+.field:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+select.field option { background: #171a22; color: rgb(var(--fg)); }
+html[data-theme="light"] select.field option { background: #fff; }
+.row:hover { background: rgb(var(--ink) / 0.05); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--ink) / 0.12); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

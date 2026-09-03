@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { listen, win } from "../lib/tauri";
 import { api, appVersion, engineLabel, engineName, errorText, langName, speak, type Entry, type HotkeyStatus, type Settings, type TranslateResult, type UpdateInfo } from "../lib/api";
 import { Icon } from "../lib/icons";
+import { applyTheme } from "../lib/theme";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion, type Transition } from "motion/react";
 
 type Tab = "translate" | "history" | "favorites" | "settings";
@@ -21,6 +22,7 @@ export default function Main() {
   const [prefill, setPrefill] = useState<{ text: string; n: number }>({ text: "", n: 0 });
 
   useEffect(() => {
+    api.getSettings().then((s) => applyTheme(s.theme)).catch(() => undefined);
     const un = listen<string>("main:prefill", ({ payload }) => {
       setPrefill((p) => ({ text: payload, n: p.n + 1 }));
       setTab("translate");
@@ -39,7 +41,7 @@ export default function Main() {
         </div>
         <div data-tauri-drag-region className="flex flex-1 justify-center">
           <LayoutGroup id="tabs">
-            <div className="flex gap-0.5 rounded-full bg-white/5 p-[3px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
+            <div className="segbar flex gap-0.5 p-[3px]">
               {TABS.map((t) => (
                 <button key={t.id} className={`seg ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
                   {tab === t.id && <motion.div layoutId="tab-pill" className="tab-pill" transition={T_RESIZE} />}
@@ -125,7 +127,7 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
         <div className="card flex flex-col gap-2 rounded-[20px] p-3">
           <div className="relative flex items-center gap-2">
             <div className="pill pl-2.5!">
-              <span className="tracking-wide text-white/70">{(result?.detected ?? "auto").toUpperCase()}</span>
+              <span className="tracking-wide text-ink/70">{(result?.detected ?? "auto").toUpperCase()}</span>
               <span>{result ? langName(result.detected) : "Определить язык"}</span>
             </div>
             <div className="flex-1" />
@@ -135,11 +137,11 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
             value={source}
             onChange={(e) => setSource(e.target.value)}
             placeholder="Введите или вставьте текст…"
-            className="relative min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none placeholder:text-white/30"
+            className="relative min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none placeholder:text-ink/30"
             spellCheck={false}
           />
           <div className="relative flex items-center gap-2">
-            <span className="pl-2.5 text-xs text-white/40">{source.length} / 5000</span>
+            <span className="pl-2.5 text-xs text-ink/40">{source.length} / 5000</span>
             <div className="flex-1" />
             <button className="rb" onClick={() => speak(source, result?.detected ?? "en")} title="Озвучить" disabled={!source}><Icon name="speaker" /></button>
           </div>
@@ -149,18 +151,18 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
           <div className="relative flex items-center gap-2">
             <button className="pill pl-2.5!" onClick={() => { if (settings) setTarget(targetLabel === settings.primaryLang ? settings.secondaryLang : settings.primaryLang); }} title="Сменить целевой язык">
               <span className={`dot ${status === "loading" ? "pulse" : ""}`} />
-              <span className="tracking-wide text-[var(--accent)]">{targetLabel.toUpperCase()}</span>
+              <span className="tracking-wide text-accent">{targetLabel.toUpperCase()}</span>
               <span>{langName(targetLabel)}</span>
               <Icon name="chevron" size={12} className="opacity-50" />
             </button>
-            <span className="text-xs text-white/45">{status === "loading" ? "переводим…" : result ? engineLabel(result) : ""}</span>
+            <span className="text-xs text-ink/45">{status === "loading" ? "переводим…" : result ? engineLabel(result) : ""}</span>
             <div className="flex-1" />
           </div>
           <div className="relative min-h-0 flex-1 overflow-auto px-2.5 py-2" style={{ position: "relative" }}>
             <AnimatePresence mode="popLayout" initial={false}>
               {status === "error" ? (
                 <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0.15 : 0.18 }} className="flex flex-col gap-3">
-                  <div className="text-base text-white/85">{error}</div>
+                  <div className="text-base text-ink/85">{error}</div>
                   <button className="pill w-fit" onClick={run}><Icon name="refresh" size={15} className="opacity-70" />Повторить</button>
                 </motion.div>
               ) : status === "loading" && !result ? (
@@ -178,10 +180,10 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
                 >
                   <div className="select-text text-base leading-relaxed" style={{ textWrap: "pretty" }}>{result.text}</div>
                   {result.wordMode && result.alternatives.length > 0 && (
-                    <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                    <div className="flex flex-col gap-1.5 border-t border-ink/10 pt-2">
                       {result.alternatives.slice(0, 4).map((a) => (
                         <div key={a.pos} className="flex flex-wrap items-center gap-1.5">
-                          <span className="px-1 text-[11px] font-medium uppercase tracking-wider text-white/40">{a.pos}</span>
+                          <span className="px-1 text-[11px] font-medium uppercase tracking-wider text-ink/40">{a.pos}</span>
                           {a.terms.slice(0, 6).map((t) => <button key={t} className="chip" onClick={() => api.copy(t)} title="Скопировать">{t}</button>)}
                         </div>
                       ))}
@@ -189,7 +191,7 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
                   )}
                 </motion.div>
               ) : (
-                <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0.15 : 0.18 }} className="text-base text-white/30">
+                <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0.15 : 0.18 }} className="text-base text-ink/30">
                   Перевод появится здесь
                 </motion.div>
               )}
@@ -205,8 +207,7 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
         </div>
 
         <button
-          className="absolute left-1/2 top-3 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full text-white/90"
-          style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)), rgba(24,26,36,0.9)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px rgba(0,0,0,0.45)" }}
+          className="swap absolute left-1/2 top-3 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full"
           onClick={swap}
           title="Поменять местами"
         >
@@ -215,15 +216,15 @@ function Translate({ prefill }: { prefill: { text: string; n: number } }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <span className="mr-1 text-xs text-white/40">Движок</span>
+        <span className="mr-1 text-xs text-ink/40">Движок</span>
         {engines.map((e, i) => (
-          <span key={e} className={`pill h-8! px-3! ${(result ? result.engine === e : i === 0) ? "active" : "bg-white/5!"}`}>
+          <span key={e} className={`pill h-8! px-3! ${(result ? result.engine === e : i === 0) ? "active" : "bg-ink/5!"}`}>
             {(result ? result.engine === e : i === 0) && <span className="dot" />}
             {engineName(e)}
           </span>
         ))}
         <div className="flex-1" />
-        <span className="text-xs text-white/35">{settings?.hotkeyPopup ?? "Ctrl+Alt+T"} — перевести выделенное</span>
+        <span className="text-xs text-ink/35">{settings?.hotkeyPopup ?? "Ctrl+Alt+T"} — перевести выделенное</span>
       </div>
     </div>
   );
@@ -266,20 +267,20 @@ function History({ favorites, onPick }: { favorites: boolean; onPick: (text: str
       <div className="relative flex items-center gap-2">
         <div className="field flex flex-1 items-center gap-2">
           <Icon name="search" className="opacity-50" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={favorites ? "Поиск в избранном" : "Поиск в истории"} className="flex-1 bg-transparent outline-none placeholder:text-white/30" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={favorites ? "Поиск в избранном" : "Поиск в истории"} className="flex-1 bg-transparent outline-none placeholder:text-ink/30" />
         </div>
         {!favorites && items.length > 0 && (
-          <button className={`pill ${confirmClear ? "text-red-300" : ""}`} onClick={clear}><Icon name="trash" size={15} className="opacity-70" />{confirmClear ? "Точно очистить?" : "Очистить"}</button>
+          <button className={`pill ${confirmClear ? "text-err" : ""}`} onClick={clear}><Icon name="trash" size={15} className="opacity-70" />{confirmClear ? "Точно очистить?" : "Очистить"}</button>
         )}
         {favorites && items.length > 0 && (
           <button className="pill" onClick={exportCsv} title="Сохранить CSV в Загрузки"><Icon name="copy" size={15} className="opacity-70" />Экспорт CSV</button>
         )}
       </div>
-      {error && <div className="px-2 text-sm text-red-300">{error}</div>}
-      {exported && <div className="px-2 text-sm text-emerald-300">Сохранено: {exported}</div>}
+      {error && <div className="px-2 text-sm text-err">{error}</div>}
+      {exported && <div className="px-2 text-sm text-ok">Сохранено: {exported}</div>}
       <div className="relative min-h-0 flex-1 overflow-auto">
         {items.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-white/30">{query ? "Ничего не найдено" : favorites ? "Отметьте перевод звёздочкой, и он появится здесь" : "История пуста. Выделите текст и нажмите хоткей"}</div>
+          <div className="flex h-full items-center justify-center text-ink/30">{query ? "Ничего не найдено" : favorites ? "Отметьте перевод звёздочкой, и он появится здесь" : "История пуста. Выделите текст и нажмите хоткей"}</div>
         ) : (
           <AnimatePresence initial={false}>
             {items.map((e, i) => (
@@ -291,10 +292,10 @@ function History({ favorites, onPick }: { favorites: boolean; onPick: (text: str
                 exit={{ opacity: 0, height: 0, transition: { duration: 0.15 } }}
               >
                 <div className="row flex items-center gap-3 rounded-xl px-2.5 py-1.5" onDoubleClick={() => onPick(e.sourceText)}>
-                  <span className="w-11 shrink-0 text-xs text-white/40">{fmt(e.createdAt)}</span>
-                  <span className="shrink-0 rounded-full bg-white/7 px-2 py-0.5 text-[11px] font-medium tracking-wider text-white/80">{e.sourceLang.toUpperCase()} → {e.targetLang.toUpperCase()}</span>
+                  <span className="w-11 shrink-0 text-xs text-ink/40">{fmt(e.createdAt)}</span>
+                  <span className="shrink-0 rounded-full bg-ink/7 px-2 py-0.5 text-[11px] font-medium tracking-wider text-ink/80">{e.sourceLang.toUpperCase()} → {e.targetLang.toUpperCase()}</span>
                   <span className="w-[38%] shrink-0 truncate text-[13px]" title={e.sourceText}>{e.sourceText}</span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-white/50" title={e.resultText}>{e.resultText}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-ink/50" title={e.resultText}>{e.resultText}</span>
                   <button className={`rb h-7! w-7! ${e.isFavorite ? "active" : ""}`} onClick={() => toggle(e)} title="В избранное"><Icon name="star" size={14} /></button>
                   <button className="rb h-7! w-7!" onClick={() => api.copy(e.resultText)} title="Копировать перевод"><Icon name="copy" size={14} /></button>
                   <button className="rb h-7! w-7!" onClick={() => remove(e)} title="Удалить"><Icon name="trash" size={14} /></button>
@@ -309,14 +310,19 @@ function History({ favorites, onPick }: { favorites: boolean; onPick: (text: str
 }
 
 const langs = ["ru", "en", "uk", "de", "fr", "es", "it", "pt", "pl", "tr", "ja", "ko", "zh"];
+const THEMES = [
+  { id: "system", label: "Системная" },
+  { id: "dark", label: "Тёмная" },
+  { id: "light", label: "Светлая" },
+];
 
 // Компоненты вынесены из SettingsPanel: объявленные внутри, они пересоздавались на каждый рендер и поле теряло фокус после первого символа.
 function Row({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="flex items-center gap-3 py-1.5"><span className="w-56 text-sm text-white/70">{label}</span>{children}</div>;
+  return <div className="flex items-center gap-3 py-1.5"><span className="w-56 text-sm text-ink/70">{label}</span>{children}</div>;
 }
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`toggle-track relative h-6 w-11 rounded-full ${on ? "bg-[var(--accent)]" : "bg-white/15"}`}>
+    <button onClick={onClick} className={`toggle-track relative h-6 w-11 rounded-full ${on ? "bg-accent" : "bg-ink/15"}`}>
       <span className={`toggle-thumb absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow ${on ? "on" : ""}`} />
     </button>
   );
@@ -401,15 +407,15 @@ function HotkeyField({ value, status, onCommit }: { value: string; status?: Hotk
       <button
         ref={ref}
         type="button"
-        className={`field w-44 text-left ${localError ? "text-red-300" : ""}`}
+        className={`field w-44 text-left ${localError ? "text-err" : ""}`}
         onClick={start}
         onKeyDown={recording ? onKeyDown : undefined}
         onBlur={() => recording && cancel()}
       >
         {label}
       </button>
-      {!recording && status?.error && <span className="text-xs text-red-300">{status.error}</span>}
-      {!recording && status && !status.error && <Icon name="check" size={15} className="text-emerald-300" />}
+      {!recording && status?.error && <span className="text-xs text-err">{status.error}</span>}
+      {!recording && status && !status.error && <Icon name="check" size={15} className="text-ok" />}
     </div>
   );
 }
@@ -474,10 +480,10 @@ function About() {
         <motion.div key={phase} {...anim} className="flex items-center gap-3">
           {phase === "idle" && <button className="pill" onClick={check}>Проверить обновления</button>}
           {phase === "checking" && <span className="pill"><span className="dot pulse" />Проверяем…</span>}
-          {phase === "none" && <span className="pill text-emerald-300"><Icon name="check" size={15} />Установлена последняя версия</span>}
+          {phase === "none" && <span className="pill text-ok"><Icon name="check" size={15} />Установлена последняя версия</span>}
           {phase === "found" && (
             <>
-              <span className="text-sm text-white/70">Доступна {info?.version}</span>
+              <span className="text-sm text-ink/70">Доступна {info?.version}</span>
               <button className="pill active" onClick={install}>Обновить</button>
             </>
           )}
@@ -486,13 +492,13 @@ function About() {
               {pct === null ? "Загрузка" : `Загрузка ${pct}%`}
               {pct === null
                 ? <span className="sk absolute bottom-0 left-0 h-1 w-full rounded-none" />
-                : <span className="absolute bottom-0 left-0 h-1 bg-[var(--accent)]" style={{ width: `${pct}%`, transition: "width 150ms linear" }} />}
+                : <span className="absolute bottom-0 left-0 h-1 bg-accent" style={{ width: `${pct}%`, transition: "width 150ms linear" }} />}
             </span>
           )}
           {phase === "installing" && <span className="pill"><span className="dot pulse" />Перезапуск…</span>}
           {phase === "error" && (
             <>
-              <span className="text-sm text-red-300">{error}</span>
+              <span className="text-sm text-err">{error}</span>
               <button className="pill" onClick={installFailed ? install : check}>Повторить</button>
             </>
           )}
@@ -521,6 +527,8 @@ function SettingsPanel() {
 
   async function persist(next: Settings) {
     setS(next);
+    // Тема применяется сразу: в попап её донесёт событие settings:changed из settings_set.
+    applyTheme(next.theme);
     try {
       const status = await api.setSettings(next);
       setStatuses(status);
@@ -544,21 +552,21 @@ function SettingsPanel() {
   return (
     <div className="card flex h-full flex-col gap-1 overflow-auto rounded-[20px] p-5">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-white/40">Хоткеи</span>
-        <span className="text-xs text-emerald-300" style={{ opacity: saved ? 1 : 0, transition: "opacity 150ms ease" }}>Сохранено</span>
-        {saveError && <span className="text-xs text-red-300">{saveError}</span>}
+        <span className="text-xs font-medium uppercase tracking-wider text-ink/40">Хоткеи</span>
+        <span className="text-xs text-ok" style={{ opacity: saved ? 1 : 0, transition: "opacity 150ms ease" }}>Сохранено</span>
+        {saveError && <span className="text-xs text-err">{saveError}</span>}
       </div>
       <Row label="Перевести в попап"><HotkeyField value={s.hotkeyPopup} status={statusOf("hotkeyPopup")} onCommit={(v) => set("hotkeyPopup", v)} /></Row>
       <Row label="Заменить выделенное"><HotkeyField value={s.hotkeyReplace} status={statusOf("hotkeyReplace")} onCommit={(v) => set("hotkeyReplace", v)} /></Row>
       <Row label="Открыть окно"><HotkeyField value={s.hotkeyWindow} status={statusOf("hotkeyWindow")} onCommit={(v) => set("hotkeyWindow", v)} /></Row>
-      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-white/40">Языки</div>
+      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-ink/40">Языки</div>
       <Row label="Переводить на">
         <select className="field w-44" value={s.primaryLang} onChange={(e) => set("primaryLang", e.target.value)}>{langs.map((l) => <option key={l} value={l}>{langName(l)}</option>)}</select>
       </Row>
       <Row label="Если текст уже на этом языке — на">
         <select className="field w-44" value={s.secondaryLang} onChange={(e) => set("secondaryLang", e.target.value)}>{langs.map((l) => <option key={l} value={l}>{langName(l)}</option>)}</select>
       </Row>
-      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-white/40">Движки</div>
+      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-ink/40">Движки</div>
       <Row label="Порядок цепочки">
         <div className="flex gap-2">
           {s.engines.map((e, i) => (
@@ -566,13 +574,23 @@ function SettingsPanel() {
           ))}
         </div>
       </Row>
-      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-white/40">Общее</div>
+      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-ink/40">Общее</div>
+      <Row label="Тема">
+        <div className="segbar flex gap-0.5 p-[3px]">
+          {THEMES.map((t) => (
+            <button key={t.id} className={`seg ${s.theme === t.id ? "active" : ""}`} onClick={() => set("theme", t.id)}>
+              {s.theme === t.id && <motion.div layoutId="theme-pill" className="tab-pill" transition={T_RESIZE} />}
+              <span className="relative">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </Row>
       <Row label="Запускать вместе с Windows"><Toggle on={autostart} onClick={toggleAutostart} /></Row>
       <Row label="Вести историю"><Toggle on={s.historyEnabled} onClick={() => set("historyEnabled", !s.historyEnabled)} /></Row>
       <Row label="Размер текста в попапе">
         <input type="number" min={12} max={24} className="field w-24" value={s.fontSize} onChange={(e) => set("fontSize", Number(e.target.value) || 16)} />
       </Row>
-      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-white/40">О программе</div>
+      <div className="mb-1 mt-4 text-xs font-medium uppercase tracking-wider text-ink/40">О программе</div>
       <About />
     </div>
   );
