@@ -1,0 +1,20 @@
+# зависимости и сборки
+app/node_modules/
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/schemas/
+
+# локальные рабочие файлы
+decisions.tsv
+.claude/
+design/utranslate.html
+*.log
+
+# ключи подписи обновлений никогда не в репозитории
+*.key
+*.key.pub
+.tauri/
+
+# системное
+.DS_Store
+Thumbs.db

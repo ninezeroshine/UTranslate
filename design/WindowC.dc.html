@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Onest', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; background: #08090c; }
+    a { color: #b9a7ff; } a:hover { color: #d2c7ff; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .card { position: relative; background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%), rgba(20,22,30,0.55); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 1px 0 rgba(255,255,255,0.16), 0 20px 50px rgba(0,0,0,0.35); color: #f4f4f8; }
+    .spec { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.14), rgba(255,255,255,0) 55%); }
+    .pill { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #f4f4f8; white-space: nowrap; }
+    .pill:hover { background: rgba(255,255,255,0.13); }
+    .rb { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); color: rgba(244,244,248,0.72); }
+    .rb:hover { background: rgba(255,255,255,0.12); color: #f4f4f8; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #b9a7ff; box-shadow: 0 0 10px rgba(185,167,255,0.9); flex-shrink: 0; }
+    .seg { padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 500; color: rgba(244,244,248,0.55); white-space: nowrap; }
+    .seg:hover { color: #f4f4f8; }
+    .wc { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(244,244,248,0.6); }
+    .wc:hover { background: rgba(255,255,255,0.10); color: #f4f4f8; }
+    .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .row:hover { background: rgba(255,255,255,0.05); }
+  </style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; border-radius: 20px; overflow: hidden; color: #f4f4f8; display: flex; flex-direction: column; background: radial-gradient(55% 45% at 8% 0%, rgba(185,167,255,0.22), rgba(185,167,255,0) 65%), radial-gradient(45% 40% at 100% 100%, rgba(90,211,200,0.14), rgba(90,211,200,0) 65%), radial-gradient(35% 30% at 60% 30%, rgba(255,170,140,0.08), rgba(255,170,140,0) 70%), #0e1016; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);">
+
+  <div style="display: flex; align-items: center; height: 56px; padding: 0 14px 0 20px; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; gap: 9px; width: 220px;">
+      <div style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #d9cfff, #b9a7ff 45%, #7c68d8); box-shadow: 0 0 16px rgba(185,167,255,0.5); display: flex; align-items: center; justify-content: center; color: #1b1538;"><svg width="14" height="14" class="ic" style="stroke-width: 1.8;"><path d="M2 3.5h6"></path><path d="M5 2v1.5"></path><path d="M7 3.5c-.5 2.5-2 4.5-4.5 5.5"></path><path d="M4 5c.7 1.7 2 3 3.8 3.8"></path><path d="M8 12.5l2.2-5.5 2.3 5.5"></path><path d="M9 10.8h2.5"></path></svg></div>
+      <span style="font-size: 14px; font-weight: 500; letter-spacing: -0.01em;">UTranslate</span>
+    </div>
+    <div style="flex-grow: 1; display: flex; justify-content: center;">
+      <div style="display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);">
+        <div class="seg" style="background: rgba(255,255,255,0.12); color: #f4f4f8; box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);">Перевод</div>
+        <div class="seg">История</div>
+        <div class="seg">Избранное</div>
+        <div class="seg">Настройки</div>
+      </div>
+    </div>
+    <div style="width: 220px; display: flex; justify-content: flex-end; gap: 4px;">
+      <div class="wc"><svg width="10" height="10" class="ic"><path d="M0.5 5h9"></path></svg></div>
+      <div class="wc"><svg width="10" height="10" class="ic"><rect x="0.75" y="0.75" width="8.5" height="8.5" rx="2"></rect></svg></div>
+      <div class="wc"><svg width="10" height="10" class="ic"><path d="M1 1l8 8"></path><path d="M9 1l-8 8"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 20px 20px 20px; flex-grow: 1; min-height: 0;">
+
+    <div style="position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; flex-grow: 1; min-height: 0;">
+
+      <div class="card" style="display: flex; flex-direction: column; border-radius: 20px; padding: 12px; gap: 8px;">
+        <div class="spec"></div>
+        <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+          <div class="pill" style="padding: 0 12px 0 11px;"><span style="letter-spacing: 0.02em; color: rgba(244,244,248,0.7);">EN</span><span>Английский</span><span style="color: rgba(244,244,248,0.45); font-weight: 400;">определён</span><svg width="12" height="12" class="ic" style="color: rgba(244,244,248,0.5);"><path d="M3 4.5l3 3 3-3"></path></svg></div>
+          <div style="flex-grow: 1;"></div>
+          <div class="rb"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+        </div>
+        <div style="position: relative; padding: 8px 10px; font-size: 16px; line-height: 1.55; flex-grow: 1; color: #f4f4f8;">The trick is to lean on what the system already ships: the webview, the clipboard, the speech voices — and only reach for the network when a sentence actually needs translating.</div>
+        <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+          <span style="padding-left: 10px; font-size: 12px; color: rgba(244,244,248,0.4);">177 / 5000</span>
+          <div style="flex-grow: 1;"></div>
+          <div class="rb"><svg width="16" height="16" class="ic"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg></div>
+        </div>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; border-radius: 20px; padding: 12px; gap: 8px;">
+        <div class="spec"></div>
+        <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+          <div class="pill" style="padding: 0 12px 0 11px;"><span class="dot"></span><span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span><span>Русский</span><svg width="12" height="12" class="ic" style="color: rgba(244,244,248,0.5);"><path d="M3 4.5l3 3 3-3"></path></svg></div>
+          <span style="font-size: 12px; color: rgba(244,244,248,0.45);">Google · 0,6 с</span>
+          <div style="flex-grow: 1;"></div>
+        </div>
+        <div style="position: relative; padding: 8px 10px; font-size: 16px; line-height: 1.55; flex-grow: 1; color: #f4f4f8;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки — и обращаться к сети только тогда, когда предложение действительно нужно перевести.</div>
+        <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+          <div class="pill" style="padding: 0 14px 0 11px;"><svg width="15" height="15" class="ic" style="color: rgba(244,244,248,0.7);"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"></rect><path d="M10 5V3a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1V9a1 1 0 0 0 1 1h1.5"></path></svg><span>Копировать</span></div>
+          <div class="pill" style="padding: 0 14px 0 11px;"><svg width="15" height="15" class="ic" style="color: rgba(244,244,248,0.7);"><path d="M2 6h2.5l3-2.5v8l-3-2.5H2z"></path><path d="M10.5 5a3 3 0 0 1 0 5"></path></svg><span>Озвучить</span></div>
+          <div class="rb"><svg width="16" height="16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 50%; top: 12px; width: 40px; height: 40px; margin-left: -20px; border-radius: 50%; background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)), rgba(24,26,36,0.9); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; color: #f4f4f8;"><svg width="16" height="16" class="ic"><path d="M3 5.5h9"></path><path d="M9.5 3l2.5 2.5L9.5 8"></path><path d="M13 10.5H4"></path><path d="M6.5 8L4 10.5 6.5 13"></path></svg></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+      <span style="font-size: 12px; color: rgba(244,244,248,0.4); margin-right: 4px;">Движок</span>
+      <div class="pill" style="height: 32px; padding: 0 13px 0 11px; box-shadow: inset 0 0 0 1px rgba(185,167,255,0.55), inset 0 1px 0 rgba(255,255,255,0.12); background: rgba(185,167,255,0.12);"><span class="dot"></span><span>Google</span></div>
+      <div class="pill" style="height: 32px; padding: 0 13px; background: rgba(255,255,255,0.05);">Bing</div>
+      <div class="pill" style="height: 32px; padding: 0 13px; background: rgba(255,255,255,0.03); color: rgba(244,244,248,0.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);"><span>DeepL</span><span style="font-size: 11px; font-weight: 400;">ключ</span></div>
+      <div class="pill" style="height: 32px; padding: 0 13px; background: rgba(255,255,255,0.03); color: rgba(244,244,248,0.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);"><span>Gemini</span><span style="font-size: 11px; font-weight: 400;">ключ</span></div>
+      <div style="flex-grow: 1;"></div>
+      <span style="font-size: 12px; color: rgba(244,244,248,0.35);">Ctrl+Alt+T — перевести выделенное</span>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 2px; border-radius: 20px; padding: 10px 8px 8px 8px; flex-shrink: 0;">
+      <div class="spec"></div>
+      <div style="position: relative; display: flex; align-items: center; justify-content: space-between; padding: 2px 10px 6px 10px;">
+        <span style="font-size: 12px; font-weight: 500; color: rgba(244,244,248,0.7);">Недавние</span>
+        <span style="font-size: 12px; color: #b9a7ff;">Вся история</span>
+      </div>
+      <div class="row" style="position: relative; display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px;">
+        <span style="width: 44px; flex-shrink: 0; font-size: 12px; color: rgba(244,244,248,0.4);">13:42</span>
+        <span style="flex-shrink: 0; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); color: rgba(244,244,248,0.8);">EN → RU</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #f4f4f8;">Most desktop translators either bundle a whole browser or lock…</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(244,244,248,0.5);">Большинство настольных переводчиков либо тащат целый браузер…</span>
+      </div>
+      <div class="row" style="position: relative; display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px;">
+        <span style="width: 44px; flex-shrink: 0; font-size: 12px; color: rgba(244,244,248,0.4);">12:10</span>
+        <span style="flex-shrink: 0; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); color: rgba(244,244,248,0.8);">RU → EN</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #f4f4f8;">давай созвонимся после обеда</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(244,244,248,0.5);">let's have a call after lunch</span>
+      </div>
+      <div class="row" style="position: relative; display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px;">
+        <span style="width: 44px; flex-shrink: 0; font-size: 12px; color: rgba(244,244,248,0.4);">вчера</span>
+        <span style="flex-shrink: 0; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); color: rgba(244,244,248,0.8);">EN → RU</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #f4f4f8;">resilient</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(244,244,248,0.5);">устойчивый</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

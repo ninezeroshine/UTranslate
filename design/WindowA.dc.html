@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; background: #0b0c0f; }
+    a { color: #5ad3c8; } a:hover { color: #8ee6dd; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .ib { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: rgba(238,240,244,0.62); }
+    .ib:hover { background: rgba(255,255,255,0.08); color: #eef0f4; }
+    .wc { width: 46px; height: 44px; display: flex; align-items: center; justify-content: center; color: rgba(238,240,244,0.7); }
+    .wc:hover { background: rgba(255,255,255,0.08); }
+    .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+    .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  </style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; border-radius: 12px; background: #121418; border: 1px solid rgba(255,255,255,0.08); overflow: hidden; color: #eef0f4; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; height: 44px; padding-left: 16px; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; gap: 8px; width: 220px;">
+      <div style="width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #5ad3c8, #2f9d94); display: flex; align-items: center; justify-content: center; color: #0d1a19;"><svg width="16" height="16" class="ic" style="stroke-width: 1.7;"><path d="M2.5 4h7"></path><path d="M6 2.5V4"></path><path d="M8 4c-.5 3-2.5 5.5-5 6.5"></path><path d="M4.5 6c.8 2 2.5 3.5 4.5 4.5"></path><path d="M9 14l2.5-6 2.5 6"></path><path d="M10 12h3"></path></svg></div>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: -0.01em;">UTranslate</span>
+    </div>
+    <div style="flex-grow: 1; display: flex; justify-content: center;">
+      <div style="display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,0.05);">
+        <div style="padding: 5px 14px; border-radius: 7px; background: rgba(255,255,255,0.10); font-size: 12px; font-weight: 500; color: #eef0f4;">Перевод</div>
+        <div style="padding: 5px 14px; border-radius: 7px; font-size: 12px; color: rgba(238,240,244,0.55);">История</div>
+        <div style="padding: 5px 14px; border-radius: 7px; font-size: 12px; color: rgba(238,240,244,0.55);">Избранное</div>
+        <div style="padding: 5px 14px; border-radius: 7px; font-size: 12px; color: rgba(238,240,244,0.55);">Настройки</div>
+      </div>
+    </div>
+    <div style="width: 220px; display: flex; justify-content: flex-end;">
+      <div class="wc"><svg width="10" height="10" class="ic"><path d="M0.5 5h9"></path></svg></div>
+      <div class="wc"><svg width="10" height="10" class="ic"><rect x="0.75" y="0.75" width="8.5" height="8.5" rx="1"></rect></svg></div>
+      <div class="wc"><svg width="10" height="10" class="ic"><path d="M1 1l8 8"></path><path d="M9 1l-8 8"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px; padding: 6px 20px 20px 20px; flex-grow: 1; min-height: 0;">
+
+    <div style="position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; flex-grow: 1; min-height: 0;">
+
+      <div style="display: flex; flex-direction: column; border-radius: 12px; background: #171a20; border: 1px solid rgba(255,255,255,0.06); overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 9px 9px 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 7px; padding: 4px 8px 4px 8px; border-radius: 7px; background: rgba(255,255,255,0.06); font-size: 12px;">
+            <span class="mono" style="font-size: 11px; color: #c9cdd6;">EN</span>
+            <span>Английский</span>
+            <span style="color: rgba(238,240,244,0.45);">определён</span>
+            <svg width="12" height="12" class="ic" style="color: rgba(238,240,244,0.5);"><path d="M3 4.5l3 3 3-3"></path></svg>
+          </div>
+          <div style="flex-grow: 1;"></div>
+          <div class="ib"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+        </div>
+        <div style="padding: 14px 16px; font-size: 15px; line-height: 1.6; flex-grow: 1; color: #eef0f4;">The trick is to lean on what the system already ships: the webview, the clipboard, the speech voices — and only reach for the network when a sentence actually needs translating.</div>
+        <div style="display: flex; align-items: center; padding: 6px 8px 8px 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <span class="mono" style="font-size: 11px; color: rgba(238,240,244,0.4);">177 / 5000</span>
+          <div style="flex-grow: 1;"></div>
+          <div class="ib"><svg width="16" height="16" class="ic"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; border-radius: 12px; background: #171a20; border: 1px solid rgba(255,255,255,0.06); overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 9px 9px 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 7px; padding: 4px 8px 4px 8px; border-radius: 7px; background: rgba(90,211,200,0.12); font-size: 12px;">
+            <span class="mono" style="font-size: 11px; color: #5ad3c8;">RU</span>
+            <span>Русский</span>
+            <svg width="12" height="12" class="ic" style="color: rgba(238,240,244,0.5);"><path d="M3 4.5l3 3 3-3"></path></svg>
+          </div>
+          <div style="flex-grow: 1;"></div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(238,240,244,0.5); padding-right: 8px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: #5ad3c8; box-shadow: 0 0 8px rgba(90,211,200,0.8);"></span>
+            <span>Google · 0,6 с</span>
+          </div>
+        </div>
+        <div style="padding: 14px 16px; font-size: 15px; line-height: 1.6; flex-grow: 1; color: #eef0f4;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки — и обращаться к сети только тогда, когда предложение действительно нужно перевести.</div>
+        <div style="display: flex; align-items: center; gap: 2px; padding: 6px 8px 8px 8px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <div style="flex-grow: 1;"></div>
+          <div class="ib"><svg width="16" height="16" class="ic"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"></rect><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+          <div class="ib"><svg width="16" height="16" class="ic"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path><path d="M12.8 3.6a6 6 0 0 1 0 8.8"></path></svg></div>
+          <div class="ib"><svg width="16" height="16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 50%; top: 9px; width: 30px; height: 30px; margin-left: -15px; border-radius: 50%; background: #1f232b; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: #eef0f4;"><svg width="16" height="16" class="ic"><path d="M3 5.5h9"></path><path d="M9.5 3l2.5 2.5L9.5 8"></path><path d="M13 10.5H4"></path><path d="M6.5 8L4 10.5 6.5 13"></path></svg></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+      <span style="font-size: 11px; color: rgba(238,240,244,0.4); margin-right: 4px;">Движок</span>
+      <div style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 7px; border: 1px solid rgba(90,211,200,0.5); background: rgba(90,211,200,0.10); font-size: 12px; color: #eef0f4;"><svg width="12" height="12" class="ic" style="color: #5ad3c8;"><path d="M2 6.5l2.5 2.5L10 3.5"></path></svg><span>Google</span></div>
+      <div style="padding: 5px 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: rgba(238,240,244,0.7);">Bing</div>
+      <div style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 7px; border: 1px dashed rgba(255,255,255,0.12); font-size: 12px; color: rgba(238,240,244,0.45);"><span>DeepL</span><span style="font-size: 10px;">ключ</span></div>
+      <div style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 7px; border: 1px dashed rgba(255,255,255,0.12); font-size: 12px; color: rgba(238,240,244,0.45);"><span>Gemini</span><span style="font-size: 10px;">ключ</span></div>
+      <div style="flex-grow: 1;"></div>
+      <span class="mono" style="font-size: 11px; color: rgba(238,240,244,0.35);">Ctrl+Alt+T — перевести выделенное</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 6px 6px;">
+        <span style="font-size: 12px; font-weight: 500; color: rgba(238,240,244,0.7);">Недавние</span>
+        <span style="font-size: 12px; color: #5ad3c8;">Вся история</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 8px;">
+        <span class="mono" style="width: 44px; flex-shrink: 0; font-size: 11px; color: rgba(238,240,244,0.4);">13:42</span>
+        <span class="mono" style="flex-shrink: 0; font-size: 10px; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,0.06); color: #c9cdd6;">EN→RU</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #eef0f4;">Most desktop translators either bundle a whole browser or lock…</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(238,240,244,0.5);">Большинство настольных переводчиков либо тащат целый браузер…</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 8px;">
+        <span class="mono" style="width: 44px; flex-shrink: 0; font-size: 11px; color: rgba(238,240,244,0.4);">12:10</span>
+        <span class="mono" style="flex-shrink: 0; font-size: 10px; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,0.06); color: #c9cdd6;">RU→EN</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #eef0f4;">давай созвонимся после обеда</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(238,240,244,0.5);">let's have a call after lunch</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 8px;">
+        <span class="mono" style="width: 44px; flex-shrink: 0; font-size: 11px; color: rgba(238,240,244,0.4);">вчера</span>
+        <span class="mono" style="flex-shrink: 0; font-size: 10px; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,0.06); color: #c9cdd6;">EN→RU</span>
+        <span class="ell" style="width: 340px; flex-shrink: 0; font-size: 13px; color: #eef0f4;">resilient</span>
+        <span class="ell" style="flex-grow: 1; font-size: 13px; color: rgba(238,240,244,0.5);">устойчивый</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Onest', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #b9a7ff; } a:hover { color: #d2c7ff; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .glass { position: relative; background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), rgba(14,16,22,0.60); backdrop-filter: blur(36px) saturate(180%); -webkit-backdrop-filter: blur(36px) saturate(180%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.22), 0 30px 80px rgba(0,0,0,0.45), 0 8px 24px rgba(0,0,0,0.28), 0 0 60px rgba(185,167,255,0.10); color: #f4f4f8; }
+    .spec { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%); }
+    .pill { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #f4f4f8; white-space: nowrap; }
+    .pill:hover { background: rgba(255,255,255,0.13); }
+    .rb { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); color: rgba(244,244,248,0.72); }
+    .rb:hover { background: rgba(255,255,255,0.12); color: #f4f4f8; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #b9a7ff; box-shadow: 0 0 10px rgba(185,167,255,0.9); flex-shrink: 0; }
+    .art p { margin: 0 0 14px 0; }
+  </style>
+</helmet>
+<div style="position: relative; width: 760px; height: 520px; overflow: hidden; background: #f5f6f8;">
+
+  <div class="art" style="position: absolute; left: 0; top: 0; width: 760px; box-sizing: border-box; padding: 44px 96px 0 96px; color: #2a2f38; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;">
+    <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a919c; margin-bottom: 10px;">Engineering · 6 min read</div>
+    <div style="font-size: 26px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; margin-bottom: 18px;">Why a translator should weigh less than its dictionary</div>
+    <p style="font-size: 15px; line-height: 1.65;">Most desktop translators either bundle a whole browser or lock the good engines behind a monthly plan. <span style="background: #b4d5fe; color: #1a2233;">The trick is to lean on what the system already ships: the webview, the clipboard, the speech voices — and only reach for the network when a sentence actually needs translating.</span></p>
+    <p style="font-size: 15px; line-height: 1.65;">That constraint shapes everything downstream. A popup that appears in under 150 ms cannot wait for a runtime to boot, so the window is created once and simply shown. A clipboard that must be returned untouched cannot be used as scratch space for longer than a few hundred milliseconds.</p>
+    <p style="font-size: 15px; line-height: 1.65;">None of this is novel. It is the same discipline that made the small utilities of the early 2010s feel instant, applied to a stack that finally makes them pleasant to look at.</p>
+  </div>
+
+  <div class="glass" style="position: absolute; left: 300px; top: 228px; width: 430px; box-sizing: border-box; border-radius: 22px; padding: 12px 12px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
+    <div class="spec"></div>
+
+    <div style="position: relative; display: flex; align-items: center; gap: 10px;">
+      <div class="pill" style="padding: 0 12px 0 11px;">
+        <span class="dot"></span>
+        <span style="letter-spacing: 0.02em;">EN</span>
+        <svg width="14" height="14" class="ic" style="color: rgba(244,244,248,0.45);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg>
+        <span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span>
+      </div>
+      <span style="font-size: 12px; color: rgba(244,244,248,0.45);">Google · 0,6 с</span>
+      <div style="flex-grow: 1;"></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M6 2.5h4l-.5 4 2 1.5V9H4.5V8l2-1.5z"></path><path d="M8 9v4.5"></path></svg></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M9.5 2.5h4v4"></path><path d="M13.5 2.5L9 7"></path><path d="M6.5 13.5h-4v-4"></path><path d="M2.5 13.5L7 9"></path></svg></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+    </div>
+
+    <div style="position: relative; padding: 4px 8px 6px 8px; font-size: 16px; line-height: 1.5; font-weight: 400; color: #f4f4f8; text-wrap: pretty;">Хитрость в том, чтобы опираться на то, что система уже даёт: webview, буфер обмена, голоса озвучки — и обращаться к сети только тогда, когда предложение действительно нужно перевести.</div>
+
+    <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+      <div class="pill" style="padding: 0 14px 0 11px;"><svg width="15" height="15" class="ic" style="color: rgba(244,244,248,0.7);"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"></rect><path d="M10 5V3a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1V9a1 1 0 0 0 1 1h1.5"></path></svg><span>Копировать</span></div>
+      <div class="pill" style="padding: 0 14px 0 11px;"><svg width="15" height="15" class="ic" style="color: rgba(244,244,248,0.7);"><path d="M2 6h2.5l3-2.5v8l-3-2.5H2z"></path><path d="M10.5 5a3 3 0 0 1 0 5"></path><path d="M12.3 3.3a5.5 5.5 0 0 1 0 8.4"></path></svg><span>Озвучить</span></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 5px; padding-right: 8px; font-size: 12px; color: rgba(244,244,248,0.5);"><span>Оригинал</span><svg width="12" height="12" class="ic"><path d="M3 4.5l3 3 3-3"></path></svg></div>
+    </div>
+  </div>
+
+  <svg width="16" height="22" style="position: absolute; left: 288px; top: 212px;"><path d="M2 2v15l4-3.6 2.7 6.2 2.6-1.1-2.7-6.1H14z" style="fill: #ffffff; stroke: #111111; stroke-width: 1.2; stroke-linejoin: round;"></path></svg>
+</div>
+</x-dc>
+</body>
+</html>

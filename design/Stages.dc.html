@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Onest', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #b9a7ff; } a:hover { color: #d2c7ff; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .glass { position: relative; background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), rgba(14,16,22,0.60); backdrop-filter: blur(36px) saturate(180%); -webkit-backdrop-filter: blur(36px) saturate(180%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.22), 0 30px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.22), 0 0 60px rgba(185,167,255,0.12); color: #f4f4f8; }
+    .spec { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%); }
+    .pill { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #f4f4f8; white-space: nowrap; }
+    .rb { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); color: rgba(244,244,248,0.72); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #b9a7ff; box-shadow: 0 0 10px rgba(185,167,255,0.9); flex-shrink: 0; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.55); opacity: 0.45; } }
+    .pulse { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+    .sk { height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 100%); background-size: 400px 100%; animation: shimmer 1.4s linear infinite; }
+    .lbl { font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: #5b6170; }
+    .lbl b { font-weight: 600; color: #262a33; }
+  </style>
+</helmet>
+<div style="position: relative; width: 1240px; height: 380px; overflow: hidden; background: radial-gradient(40% 60% at 12% 20%, rgba(185,167,255,0.35), rgba(185,167,255,0) 70%), radial-gradient(35% 50% at 88% 90%, rgba(90,211,200,0.28), rgba(90,211,200,0) 70%), radial-gradient(30% 40% at 55% 10%, rgba(255,190,150,0.25), rgba(255,190,150,0) 70%), linear-gradient(135deg, #eceef4, #f7f8fb);">
+
+  <div style="position: absolute; left: 0; top: 0; width: 1240px; height: 380px; box-sizing: border-box; padding: 34px 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;">
+
+    <div style="display: flex; flex-direction: column; gap: 22px;">
+      <div class="lbl"><b>0 мс</b> · хоткей, захват выделения</div>
+      <div style="position: relative; height: 60px;">
+        <div class="glass" style="position: absolute; left: 24px; top: 8px; height: 44px; box-sizing: border-box; border-radius: 999px; padding: 0 16px 0 14px; display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 500;">
+          <div class="spec"></div>
+          <span class="dot pulse"></span>
+          <span style="letter-spacing: 0.02em;">EN</span>
+          <svg width="14" height="14" class="ic" style="color: rgba(244,244,248,0.45);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg>
+          <span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span>
+        </div>
+        <svg width="16" height="22" style="position: absolute; left: 10px; top: -6px;"><path d="M2 2v15l4-3.6 2.7 6.2 2.6-1.1-2.7-6.1H14z" style="fill: #ffffff; stroke: #111111; stroke-width: 1.2; stroke-linejoin: round;"></path></svg>
+      </div>
+      <div style="font-size: 13px; line-height: 1.5; color: #5b6170; max-width: 320px;">Пилюля появляется у курсора раньше, чем что-либо ушло в сеть. Точка пульсирует, пока идёт запрос.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 22px;">
+      <div class="lbl"><b>≈180 мс</b> · пружина раскрывает карточку</div>
+      <div style="position: relative; height: 150px;">
+        <div class="glass" style="position: absolute; left: 0; top: 0; width: 360px; box-sizing: border-box; border-radius: 22px; padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+          <div class="spec"></div>
+          <div style="position: relative; display: flex; align-items: center; gap: 10px;">
+            <div class="pill" style="padding: 0 12px 0 11px;"><span class="dot pulse"></span><span style="letter-spacing: 0.02em;">EN</span><svg width="14" height="14" class="ic" style="color: rgba(244,244,248,0.45);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg><span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span></div>
+            <div style="flex-grow: 1;"></div>
+            <div class="rb" style="opacity: 0.35;"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 10px; padding: 4px 8px 8px 8px;">
+            <div class="sk" style="width: 92%;"></div>
+            <div class="sk" style="width: 78%;"></div>
+            <div class="sk" style="width: 40%;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size: 13px; line-height: 1.5; color: #5b6170; max-width: 320px;">Ширина и радиус меняются пружиной, содержимое ещё скелет. Кнопки проявляются последними.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 22px;">
+      <div class="lbl"><b>≈600 мс</b> · перевод пришёл</div>
+      <div style="position: relative; height: 150px;">
+        <div class="glass" style="position: absolute; left: 0; top: 0; width: 360px; box-sizing: border-box; border-radius: 22px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+          <div class="spec"></div>
+          <div style="position: relative; display: flex; align-items: center; gap: 10px;">
+            <div class="pill" style="padding: 0 12px 0 11px;"><span class="dot"></span><span style="letter-spacing: 0.02em;">EN</span><svg width="14" height="14" class="ic" style="color: rgba(244,244,248,0.45);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg><span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span></div>
+            <span style="font-size: 12px; color: rgba(244,244,248,0.45);">Google</span>
+            <div style="flex-grow: 1;"></div>
+            <div class="rb"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+          </div>
+          <div style="position: relative; padding: 2px 8px 4px 8px; font-size: 15px; line-height: 1.5;">Хитрость в том, чтобы опираться на то, что система уже даёт.</div>
+          <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+            <div class="pill" style="height: 30px; padding: 0 12px; font-size: 12px;">Копировать</div>
+            <div class="pill" style="height: 30px; padding: 0 12px; font-size: 12px;">Озвучить</div>
+            <div class="rb" style="width: 30px; height: 30px;"><svg width="15" height="15" class="ic"><path d="M7.5 2l1.7 3.5 3.8.5-2.8 2.7.7 3.8-3.4-1.8-3.4 1.8.7-3.8L2 6l3.8-.5z"></path></svg></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size: 13px; line-height: 1.5; color: #5b6170; max-width: 320px;">Текст проявляется снизу вверх на 8 px, точка перестаёт пульсировать. Закрытие — обратный морфинг в пилюлю.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

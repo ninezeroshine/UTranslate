@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Onest', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #b9a7ff; } a:hover { color: #d2c7ff; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .glass { position: relative; background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%), rgba(14,16,22,0.62); backdrop-filter: blur(36px) saturate(180%); -webkit-backdrop-filter: blur(36px) saturate(180%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.22), 0 30px 80px rgba(0,0,0,0.55), 0 8px 24px rgba(0,0,0,0.3), 0 0 60px rgba(185,167,255,0.10); color: #f4f4f8; }
+    .spec { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 70% at 18% -10%, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%); }
+    .pill { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #f4f4f8; white-space: nowrap; }
+    .pill:hover { background: rgba(255,255,255,0.13); }
+    .rb { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); color: rgba(244,244,248,0.72); }
+    .rb:hover { background: rgba(255,255,255,0.12); color: #f4f4f8; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #b9a7ff; box-shadow: 0 0 10px rgba(185,167,255,0.9); flex-shrink: 0; }
+    .chip { display: flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 999px; background: rgba(255,255,255,0.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); font-size: 13px; color: rgba(244,244,248,0.9); white-space: nowrap; }
+    .chip:hover { background: rgba(255,255,255,0.13); }
+    .pos { display: flex; align-items: center; height: 28px; padding: 0 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(244,244,248,0.4); white-space: nowrap; }
+  </style>
+</helmet>
+<div style="position: relative; width: 760px; height: 520px; overflow: hidden; background: #0f151c; color: #e6ebf0;">
+
+  <div style="position: absolute; left: 0; top: 0; width: 760px; height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: #141c25; border-bottom: 1px solid #1f2a36;">
+    <div style="width: 34px; height: 34px; border-radius: 50%; background: #2f6fed; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #ffffff;">P</div>
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 14px; font-weight: 600;">Product team</div>
+      <div style="font-size: 12px; color: #7d8a98;">24 members, 6 online</div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 76px; width: 760px; box-sizing: border-box; padding: 0 24px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #d97757; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">M</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #f0a488;">Mara</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>we shipped the hotkey rewrite yesterday, no regressions so far</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:02</span></div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #5b8def; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">J</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #9dbcff;">Jonas</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>honestly the whole team has been incredibly <span style="background: rgba(120,170,255,0.38);">resilient</span> this quarter</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:05</span></div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #d97757; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">M</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #f0a488;">Mara</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>agreed. let's keep the pace but protect the weekends</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:06</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 24px; right: 24px; bottom: 20px; height: 44px; box-sizing: border-box; display: flex; align-items: center; padding: 0 16px; border-radius: 12px; background: #1c2733; color: #6f7c8a; font-size: 14px;">Write a message…</div>
+
+  <div class="glass" style="position: absolute; left: 290px; top: 222px; width: 430px; box-sizing: border-box; border-radius: 22px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+    <div class="spec"></div>
+
+    <div style="position: relative; display: flex; align-items: center; gap: 10px;">
+      <div class="pill" style="padding: 0 12px 0 11px;">
+        <span class="dot"></span>
+        <span style="letter-spacing: 0.02em;">EN</span>
+        <svg width="14" height="14" class="ic" style="color: rgba(244,244,248,0.45);"><path d="M2.5 7h9"></path><path d="M8 3.5L11.5 7 8 10.5"></path></svg>
+        <span style="letter-spacing: 0.02em; color: #b9a7ff;">RU</span>
+      </div>
+      <span style="font-size: 12px; color: rgba(244,244,248,0.45);">Google</span>
+      <div style="flex-grow: 1;"></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M6 2.5h4l-.5 4 2 1.5V9H4.5V8l2-1.5z"></path><path d="M8 9v4.5"></path></svg></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M9.5 2.5h4v4"></path><path d="M13.5 2.5L9 7"></path><path d="M6.5 13.5h-4v-4"></path><path d="M2.5 13.5L7 9"></path></svg></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+    </div>
+
+    <div style="position: relative; display: flex; flex-direction: column; gap: 8px; padding: 4px 8px 2px 8px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 24px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.2;">resilient</span>
+        <span style="font-size: 13px; color: rgba(244,244,248,0.5);">/rɪˈzɪlɪənt/</span>
+        <div class="rb" style="width: 28px; height: 28px;"><svg width="14" height="14" class="ic"><path d="M2 5.5h2.5l3-2.5v8l-3-2.5H2z"></path><path d="M10 4.5a3 3 0 0 1 0 5"></path></svg></div>
+      </div>
+      <div style="font-size: 18px; font-weight: 500; color: #b9a7ff; letter-spacing: -0.005em;">устойчивый</div>
+    </div>
+
+    <div style="position: relative; display: flex; flex-direction: column; gap: 6px; padding: 2px 8px 4px 8px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <span class="pos">прил.</span>
+        <span class="chip">жизнестойкий</span>
+        <span class="chip">упругий</span>
+        <span class="chip">неунывающий</span>
+        <span class="chip">гибкий</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <span class="pos">техн.</span>
+        <span class="chip">эластичный</span>
+        <span class="chip">отказоустойчивый</span>
+      </div>
+    </div>
+
+    <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+      <div class="pill" style="padding: 0 14px 0 11px;"><svg width="15" height="15" class="ic" style="color: rgba(244,244,248,0.7);"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"></rect><path d="M10 5V3a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1V9a1 1 0 0 0 1 1h1.5"></path></svg><span>Копировать</span></div>
+      <div class="rb"><svg width="16" height="16" class="ic"><path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6z"></path></svg></div>
+      <div style="flex-grow: 1;"></div>
+      <span style="padding-right: 8px; font-size: 12px; color: #b9a7ff;">Ещё 3 значения</span>
+    </div>
+  </div>
+
+  <svg width="16" height="22" style="position: absolute; left: 278px; top: 206px;"><path d="M2 2v15l4-3.6 2.7 6.2 2.6-1.1-2.7-6.1H14z" style="fill: #ffffff; stroke: #111111; stroke-width: 1.2; stroke-linejoin: round;"></path></svg>
+</div>
+</x-dc>
+</body>
+</html>

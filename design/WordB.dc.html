@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Golos Text', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #e8a83d; } a:hover { color: #f5c46a; }
+    .ic { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    .ib { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #8f8776; }
+    .ib:hover { background: #26221c; color: #f3efe6; }
+    .tb { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; border: 1px solid #2e2a24; background: #1f1c17; font-size: 12px; font-weight: 500; color: #d9d2c3; white-space: nowrap; }
+    .tb:hover { border-color: #3a352c; color: #f3efe6; }
+  </style>
+</helmet>
+<div style="position: relative; width: 760px; height: 520px; overflow: hidden; background: #0f151c; color: #e6ebf0;">
+
+  <div style="position: absolute; left: 0; top: 0; width: 760px; height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: #141c25; border-bottom: 1px solid #1f2a36;">
+    <div style="width: 34px; height: 34px; border-radius: 50%; background: #2f6fed; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #ffffff;">P</div>
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 14px; font-weight: 600;">Product team</div>
+      <div style="font-size: 12px; color: #7d8a98;">24 members, 6 online</div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 76px; width: 760px; box-sizing: border-box; padding: 0 24px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #d97757; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">M</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #f0a488;">Mara</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>we shipped the hotkey rewrite yesterday, no regressions so far</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:02</span></div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #5b8def; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">J</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #9dbcff;">Jonas</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>honestly the whole team has been incredibly <span style="background: rgba(120,170,255,0.38);">resilient</span> this quarter</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:05</span></div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: flex-start;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background: #d97757; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #ffffff;">M</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 13px; font-weight: 600; color: #f0a488;">Mara</div>
+        <div style="display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px; border-radius: 12px; border-top-left-radius: 4px; background: #1c2733; font-size: 14px; line-height: 1.45;"><span>agreed. let's keep the pace but protect the weekends</span><span style="font-size: 11px; color: #6f7c8a; white-space: nowrap;">14:06</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 24px; right: 24px; bottom: 20px; height: 44px; box-sizing: border-box; display: flex; align-items: center; padding: 0 16px; border-radius: 12px; background: #1c2733; color: #6f7c8a; font-size: 14px;">Write a message…</div>
+
+  <div style="position: absolute; left: 296px; top: 226px; width: 424px; border-radius: 8px; background: #1b1916; border: 1px solid #2e2a24; box-shadow: 0 20px 48px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.4); color: #f3efe6; overflow: hidden;">
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-bottom: 1px solid #2a2721;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: #e8a83d;">Английский → Русский</span>
+      <span style="font-size: 11px; color: #8f8776;">Google</span>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; gap: 2px;">
+        <div class="ib"><svg width="16" height="16" class="ic"><path d="M6 2.5h4l-.5 4 2 1.5V9H4.5V8l2-1.5z"></path><path d="M8 9v4.5"></path></svg></div>
+        <div class="ib"><svg width="16" height="16" class="ic"><path d="M9.5 2.5h4v4"></path><path d="M13.5 2.5L9 7"></path><path d="M6.5 13.5h-4v-4"></path><path d="M2.5 13.5L7 9"></path></svg></div>
+        <div class="ib"><svg width="16" height="16" class="ic"><path d="M4 4l8 8"></path><path d="M12 4l-8 8"></path></svg></div>
+      </div>
+    </div>
+
+    <div style="padding: 14px 16px 8px 16px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <span style="font-family: 'Unbounded', 'Golos Text', sans-serif; font-size: 22px; font-weight: 500; letter-spacing: -0.01em;">resilient</span>
+        <span style="font-size: 12px; color: #8f8776;">/rɪˈzɪlɪənt/</span>
+        <svg width="16" height="16" class="ic" style="color: #8f8776; align-self: center;"><path d="M2.5 6.5h2.5l3.5-3v9l-3.5-3H2.5z"></path><path d="M11 5.5a3.5 3.5 0 0 1 0 5"></path></svg>
+      </div>
+      <div style="font-size: 18px; color: #e8a83d;">устойчивый</div>
+      <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 4px; padding-top: 10px; border-top: 1px solid #2a2721;">
+        <div style="display: flex; gap: 12px; align-items: baseline;">
+          <span style="width: 44px; flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6f695c;">прил.</span>
+          <span style="font-size: 13px; line-height: 1.5; color: #d9d2c3;">жизнестойкий, упругий, неунывающий, гибкий</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: baseline;">
+          <span style="width: 44px; flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6f695c;">техн.</span>
+          <span style="font-size: 13px; line-height: 1.5; color: #d9d2c3;">эластичный, отказоустойчивый</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-top: 1px solid #2a2721; background: #171512;">
+      <div class="tb"><svg width="14" height="14" class="ic"><rect x="5" y="5" width="7" height="7" rx="1.5"></rect><path d="M9.5 5V3a1 1 0 0 0-1-1h-5a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h2"></path></svg><span>Копировать</span></div>
+      <div class="tb"><svg width="14" height="14" class="ic"><path d="M7 1.8l1.6 3.3 3.6.5-2.6 2.5.6 3.6L7 10l-3.2 1.7.6-3.6L1.8 5.6l3.6-.5z"></path></svg><span>В избранное</span></div>
+      <div style="flex-grow: 1;"></div>
+      <span style="font-size: 12px; color: #e8a83d;">Ещё 3 значения</span>
+    </div>
+  </div>
+
+  <svg width="16" height="22" style="position: absolute; left: 284px; top: 210px;"><path d="M2 2v15l4-3.6 2.7 6.2 2.6-1.1-2.7-6.1H14z" style="fill: #ffffff; stroke: #111111; stroke-width: 1.2; stroke-linejoin: round;"></path></svg>
+</div>
+</x-dc>
+</body>
+</html>
