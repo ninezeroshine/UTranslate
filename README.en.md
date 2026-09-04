@@ -21,7 +21,7 @@ Translate selected text with a hotkey — a capsule pops up next to your cursor,
 
 ## What it is
 
-Select text in any program, press `Ctrl+Alt+T` — a capsule with the translation pops up next to your cursor. A second hotkey replaces the selected text with its translation right in the input field. The default engines are free, no keys or sign-up. Nothing leaves your machine except the text itself, which goes to whichever translation engine you picked.
+Select text in an app that supports `Ctrl+C`/`Ctrl+V`, press `Ctrl+Alt+T` — a capsule with the translation pops up next to your cursor. A second hotkey replaces the selected text with its translation right in the input field. The default engines are free, no keys or sign-up. Nothing leaves your machine except the text itself, which goes to whichever translation engine you picked.
 
 <table>
 <tr><th>Light theme</th><th>Dark theme</th></tr>
@@ -37,8 +37,8 @@ Select text in any program, press `Ctrl+Alt+T` — a capsule with the translatio
 
 ## Features
 
-- **Popup next to the cursor in any program** — browser, chat app, editor, terminal: selection is captured by emulating `Ctrl+C`, the way QTranslate did it.
-- **In-place replacement** — a second hotkey translates and pastes the result into the same field, the clipboard is restored to what it held before, and a toast confirms "Replaced: …" after the paste.
+- **Popup next to the cursor in apps that support `Ctrl+C`/`Ctrl+V`** — browser, chat app, editor, terminal: selection is captured by emulating the key presses, the way QTranslate did it.
+- **In-place replacement** — a second hotkey translates and pastes into the same field only if the original window and selection are still active; a changed context cancels the operation. Supported clipboard formats are preserved, and ambiguous captures are cancelled without discarding the original contents. A toast confirms "Replaced: …" after the paste.
 - **Three engines with no keys** — Google → Bing → MyMemory, automatic fallback to the next one on failure with a badge showing why.
 - **Language autodetect and swap** — if the selected text is already in your primary language, it translates to the secondary one, no manual switching needed.
 - **Dictionary mode** — for one or two words, the popup shows alternative meanings by part of speech instead of a phrase translation.
@@ -86,9 +86,11 @@ Updates itself: checks 15 seconds after launch and every 6 hours; when it finds 
 
 ## How to use it
 
-**Translate a selection.** Select text in any program → `Ctrl+Alt+T` → the pill next to your cursor unfolds into a card with the translation. `Esc`, a click outside, or losing focus closes the popup.
+**Translate a selection.** Select text in an app that supports `Ctrl+C`/`Ctrl+V` → `Ctrl+Alt+T` → the pill next to your cursor unfolds into a card with the translation. `Esc`, a click outside, or losing focus closes the popup.
 
-**Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation, and a "Replaced: …" capsule pops up next to the cursor for 2 seconds. The clipboard ends up exactly as it was before.
+In the card, click **“Replace”** to put the displayed translation into the original selection without translating again or pressing another hotkey. Replacement only runs while the original window, field, and selection are still available; otherwise it is cancelled.
+
+**Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation if the window and selection do not change while the request is pending. A changed context cancels the paste. Supported clipboard formats are preserved, and ambiguous captures are cancelled without discarding the original contents; a "Replaced: …" capsule appears next to the cursor for 2 seconds.
 
 <div align="center">
 <img src="docs/media/demo-replace.gif" width="720" alt="A Russian sentence in Notepad is replaced with its English translation, with a “Replaced” toast next to the cursor">
@@ -123,7 +125,7 @@ sequenceDiagram
 | File | What it does |
 |---|---|
 | `app/src-tauri/src/lib.rs` | commands, hotkeys, tray, updater, the "capture → translate → popup" flow |
-| `app/src-tauri/src/capture.rs` | emulates `Ctrl+C` / `Ctrl+V` and restores the clipboard |
+| `app/src-tauri/src/capture.rs` | emulates `Ctrl+C` / `Ctrl+V` and restores supported clipboard formats |
 | `app/src-tauri/src/engines.rs` | Google, Bing, MyMemory, the fallback chain and cache |
 | `app/src-tauri/src/db.rs` | history and favorites, SQLite |
 | `app/src-tauri/src/popup.rs` | the popup window: position at the cursor, size to fit content |
@@ -150,6 +152,9 @@ Vite listens on IPv4 only (`127.0.0.1`) — on `localhost` the Tauri CLI can wai
 ```bash
 cd app/src-tauri && cargo test              # core unit tests
 cd app && pnpm exec tsc --noEmit            # type check
+cd app && pnpm test:frontend                # request-order and favorites tests
+cd app && pnpm test:popup                   # Playwright popup geometry tests
+cd app && pnpm build                         # production frontend build
 cd app && pnpm tauri build                  # NSIS installer
 ```
 
