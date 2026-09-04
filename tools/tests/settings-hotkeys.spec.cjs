@@ -34,6 +34,8 @@ test.beforeEach(async ({ page }) => {
       suspendPlan: [],
       settingsDelay: 0,
       suspended: false,
+      suspendGatePending: false,
+      releaseSuspendGate: null,
     };
     window.__settingsMock = state;
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
@@ -62,6 +64,14 @@ test.beforeEach(async ({ page }) => {
           const suspended = args.suspended;
           state.calls.push({ cmd, suspended });
           const plan = state.suspendPlan.shift() || {};
+          if (plan.gate) {
+            await new Promise((resolve) => {
+              state.suspendGatePending = true;
+              state.releaseSuspendGate = resolve;
+            });
+            state.suspendGatePending = false;
+            state.releaseSuspendGate = null;
+          }
           await wait(plan.delay || 0);
           if (plan.fail) throw new Error("hotkey suspension failed");
           state.suspended = suspended;
@@ -179,15 +189,17 @@ test("failed cancellation resume stays recoverable and unmount releases", async 
 test("pending unmount cleanup cannot resume over a recorder after remount", async ({ page }) => {
   const popup = hotkey(page, "Перевести в попап");
   await page.evaluate(() => {
-    window.__settingsMock.suspendPlan = [{ delay: 180 }, { delay: 0 }];
+    window.__settingsMock.suspendPlan = [{ gate: true }, { delay: 0 }];
   });
   await popup.click();
+  await expect.poll(() => page.evaluate(() => window.__settingsMock.suspendGatePending)).toBe(true);
   await page.getByRole("button", { name: "Перевод", exact: true }).click();
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   const remounted = hotkey(page, "Заменить выделенное");
   await remounted.click();
+  expect(await page.evaluate(() => window.__settingsMock.suspendGatePending)).toBe(true);
 
-  await page.waitForTimeout(240);
+  await page.evaluate(() => window.__settingsMock.releaseSuspendGate());
   await expect(remounted).toHaveClass(/\brec\b/);
   expect(await page.evaluate(() => window.__settingsMock.suspended)).toBe(true);
   expect(await page.evaluate(() => window.__settingsMock.completions)).toEqual(["suspend:true"]);
