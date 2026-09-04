@@ -43,7 +43,7 @@ jobs:
           projectPath: app
           tagName: v__VERSION__
           releaseName: "UTranslate v__VERSION__"
-          releaseBody: "Установщик ниже. Приложение обновится само."
+          releaseBody: "Обновление для Windows x64. Проверьте обновления в настройках UTranslate и подтвердите установку. Для ручной установки скачайте установщик ниже."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
