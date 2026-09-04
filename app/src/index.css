@@ -187,6 +187,43 @@ html[data-theme="dark"] {
     color: var(--ink);
   }
 
+  /* Тело попапа прокручивается внутри доступной высоты; действия остаются у нижнего края. */
+  .popup-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .popup-footer {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .popup-footer-actions {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .popup-original-toggle {
+    margin-left: auto;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
+
+  .popup-replace-error {
+    flex: 1 0 100%;
+    padding: 0 4px;
+    color: var(--err);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
   /* Плитка внутри панели. */
   .tile {
     background: var(--tile);

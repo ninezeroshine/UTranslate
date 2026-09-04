@@ -98,25 +98,121 @@ function codeToToken(code: string): string | null {
   return CODE_TOKENS[code] ?? null;
 }
 
-function HotkeyField({ label, value, status, onCommit }: {
-  label: string; value: string; status?: HotkeyStatus; onCommit: (next: string) => void;
+type HotkeySuspensionLease = { id: number; ready: Promise<void> };
+
+type HotkeySuspensionCoordinator = {
+  acquire: () => HotkeySuspensionLease | null;
+  release: (lease: HotkeySuspensionLease) => Promise<void>;
+};
+
+/** Один владелец на всю плитку: IPC идёт строго по очереди, а устаревший release видит новый lease. */
+function createHotkeySuspensionCoordinator(): HotkeySuspensionCoordinator {
+  let activeLeaseId: number | null = null;
+  let nextLeaseId = 0;
+  let suspended = false;
+  let serial = Promise.resolve();
+
+  function enqueue(task: () => Promise<void>): Promise<void> {
+    const result = serial.then(task);
+    serial = result.catch(() => undefined);
+    return result;
+  }
+
+  return {
+    acquire() {
+      if (activeLeaseId !== null) return null;
+      const id = ++nextLeaseId;
+      activeLeaseId = id;
+      const ready = enqueue(async () => {
+        // Lease мог быть отменён до своей очереди; новый владелец сам выполнит suspend.
+        if (activeLeaseId !== id) return;
+        if (!suspended) {
+          await api.hotkeysSuspend(true);
+          suspended = true;
+        }
+      }).catch((error) => {
+        if (activeLeaseId === id) activeLeaseId = null;
+        throw error;
+      });
+      return { id, ready };
+    },
+    release(lease) {
+      if (activeLeaseId === lease.id) activeLeaseId = null;
+      return enqueue(async () => {
+        // Между вызовом release и его местом в очереди запись могла перейти к другому полю.
+        if (activeLeaseId !== null || !suspended) return;
+        await api.hotkeysSuspend(false);
+        suspended = false;
+      });
+    },
+  };
+}
+
+// SettingsTab размонтируется при смене вкладки, поэтому очередь живёт столько же, сколько main webview.
+const hotkeySuspensionCoordinator = createHotkeySuspensionCoordinator();
+
+function HotkeyField({ label, value, status, coordinator, onCommit }: {
+  label: string;
+  value: string;
+  status?: HotkeyStatus;
+  coordinator: HotkeySuspensionCoordinator;
+  onCommit: (next: string) => Promise<void>;
 }) {
   const [recording, setRecording] = useState(false);
   const [live, setLive] = useState("");
   const [localError, setLocalError] = useState("");
   const ref = useRef<HTMLButtonElement>(null);
+  const mountedRef = useRef(true);
+  const recordingRef = useRef(false);
+  const savingRef = useRef(false);
+  const leaseRef = useRef<HotkeySuspensionLease | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      recordingRef.current = false;
+      const lease = leaseRef.current;
+      leaseRef.current = null;
+      if (lease && !savingRef.current) void coordinator.release(lease).catch(() => undefined);
+    };
+  }, [coordinator]);
 
   function start() {
-    setRecording(true); setLive(""); setLocalError("");
+    if (recordingRef.current || leaseRef.current) return;
+    const lease = coordinator.acquire();
+    if (!lease) return;
+    leaseRef.current = lease;
+    setLive(""); setLocalError("");
     // Иначе зарегистрированный хоткей перехватит нажатие раньше, чем его увидит поле.
-    void api.hotkeysSuspend(true).catch(() => undefined);
-    requestAnimationFrame(() => ref.current?.focus());
+    void lease.ready.then(() => {
+      if (mountedRef.current && leaseRef.current === lease) {
+        recordingRef.current = true;
+        setRecording(true);
+        requestAnimationFrame(() => {
+          if (recordingRef.current && leaseRef.current === lease) ref.current?.focus();
+        });
+      }
+    }).catch(async () => {
+      if (leaseRef.current === lease) leaseRef.current = null;
+      if (mountedRef.current) {
+        recordingRef.current = false;
+        setRecording(false);
+        setLocalError("Не удалось отключить хоткеи");
+      }
+      await coordinator.release(lease).catch(() => undefined);
+    });
   }
   function cancel() {
+    recordingRef.current = false;
     setRecording(false); setLive(""); setLocalError("");
-    void api.hotkeysSuspend(false).catch(() => undefined);
+    const lease = leaseRef.current;
+    leaseRef.current = null;
+    if (lease) void coordinator.release(lease).catch(() => {
+      if (mountedRef.current) setLocalError("Не удалось включить хоткеи");
+    });
   }
-  function onKeyDown(e: React.KeyboardEvent) {
+  async function onKeyDown(e: React.KeyboardEvent) {
     e.preventDefault();
     if (e.key === "Escape" || e.key === "Backspace" || e.key === "Delete") { cancel(); return; }
     if (e.key === "Control" || e.key === "Alt" || e.key === "Shift" || e.key === "Meta") { setLive(modsOf(e)); setLocalError(""); return; }
@@ -125,8 +221,24 @@ function HotkeyField({ label, value, status, onCommit }: {
     const mods = modsOf(e);
     if (!mods && !isFKey(token)) { setLocalError("Нужен Ctrl, Alt, Shift или Win"); setLive(""); return; }
     const combo = mods ? `${mods}+${token}` : token;
+    const lease = leaseRef.current;
+    if (!lease) return;
+    recordingRef.current = false;
+    savingRef.current = true;
     setRecording(false); setLive(""); setLocalError("");
-    onCommit(combo);
+    try {
+      await lease.ready;
+      if (!mountedRef.current || leaseRef.current !== lease) return;
+      await onCommit(combo);
+    } catch {
+      if (mountedRef.current && leaseRef.current === lease) setLocalError("Не удалось сохранить хоткей");
+    } finally {
+      savingRef.current = false;
+      if (leaseRef.current === lease) leaseRef.current = null;
+      await coordinator.release(lease).catch(() => {
+        if (mountedRef.current) setLocalError("Не удалось включить хоткеи");
+      });
+    }
   }
 
   return (
@@ -138,7 +250,7 @@ function HotkeyField({ label, value, status, onCommit }: {
         className={`hkfield w-42 shrink-0 ${recording ? "rec" : ""}`}
         onClick={start}
         onKeyDown={recording ? onKeyDown : undefined}
-        onBlur={() => recording && cancel()}
+        onBlur={() => leaseRef.current && !savingRef.current && cancel()}
       >
         {recording
           ? (live ? <><Keys combo={live} /><span>+…</span></> : <span>Нажмите сочетание…</span>)
@@ -148,6 +260,8 @@ function HotkeyField({ label, value, status, onCommit }: {
         <span className="truncate text-xs text-ink-3">
           {localError || "Esc — отмена. Глобальные хоткеи сняты."}
         </span>
+      ) : localError ? (
+        <Status tone="err">{localError}</Status>
       ) : status?.error ? (
         <Status tone={status.error.startsWith("Совпадает") ? "warn" : "err"}>{status.error}</Status>
       ) : (
@@ -321,6 +435,7 @@ function About() {
 /** Настройки. onSettings отдаёт свежую копию каркасу: тему и хоткеи показывают другие вкладки. */
 export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void }) {
   const reduce = useReducedMotion();
+  const hotkeyCoordinator = hotkeySuspensionCoordinator;
   const [s, setS] = useState<Settings | null>(null);
   const [autostart, setAutostart] = useState(false);
   const [statuses, setStatuses] = useState<HotkeyStatus[]>([]);
@@ -337,8 +452,10 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
     api.autostartGet().then(setAutostart).catch(() => undefined);
     // Занятый на этой машине хоткей должен быть подсвечен сразу, без ожидания правки.
     api.hotkeysStatus().then(setStatuses).catch(() => undefined);
-    return () => window.clearTimeout(noteTimer.current);
-  }, []);
+    return () => {
+      window.clearTimeout(noteTimer.current);
+    };
+  }, [hotkeyCoordinator]);
 
   /** Видимый ответ на действие: «Сохранено» гаснет быстро, ошибка висит дольше. */
   function flash(text: string, tone: "ok" | "err" = "ok") {
@@ -382,6 +499,18 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
   }
 
   const statusOf = (field: HotkeyStatus["field"]) => statuses.find((x) => x.field === field);
+
+  function changePrimaryLang(next: string) {
+    persist(next === cur.secondaryLang
+      ? { ...cur, primaryLang: next, secondaryLang: cur.primaryLang }
+      : { ...cur, primaryLang: next });
+  }
+
+  function changeSecondaryLang(next: string) {
+    persist(next === cur.primaryLang
+      ? { ...cur, primaryLang: cur.secondaryLang, secondaryLang: next }
+      : { ...cur, secondaryLang: next });
+  }
 
   // ---- порядок движков ----
   const engines = drag?.order ?? cur.engines;
@@ -458,7 +587,13 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
             ] as const).map(([field, label, value]) => (
               <div key={field} className="flex items-center gap-3">
                 <span className="w-46 shrink-0 text-[13px] text-ink-2">{label}</span>
-                <HotkeyField label={label} value={value} status={statusOf(field)} onCommit={(v) => set(field, v)} />
+                <HotkeyField
+                  label={label}
+                  value={value}
+                  status={statusOf(field)}
+                  coordinator={hotkeyCoordinator}
+                  onCommit={(v) => set(field, v)}
+                />
               </div>
             ))}
           </div>
@@ -474,7 +609,7 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
                     className="appearance-none bg-transparent text-[13px] text-ink outline-none"
                     aria-label="Основной язык перевода"
                     value={cur.primaryLang}
-                    onChange={(e) => set("primaryLang", e.target.value)}
+                    onChange={(e) => changePrimaryLang(e.target.value)}
                   >
                     {langs.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
                   </select>
@@ -492,7 +627,7 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
                     className="appearance-none bg-transparent text-[13px] text-ink outline-none"
                     aria-label="Второй язык перевода"
                     value={cur.secondaryLang}
-                    onChange={(e) => set("secondaryLang", e.target.value)}
+                    onChange={(e) => changeSecondaryLang(e.target.value)}
                   >
                     {langs.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
                   </select>

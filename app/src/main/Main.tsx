@@ -32,21 +32,35 @@ export default function Main() {
   return (
     <div className="spot flex h-full flex-col">
       <TitleBar tab={tab} onTab={setTab} />
-      <div className="flex min-h-0 flex-1 flex-col px-5 pb-5">
-        {/* Смена вкладки — только растворение, без сдвига: содержимое разное, движение врало бы. */}
+      <div className="relative min-h-0 flex-1 px-5 pb-5">
+        {/* Перевод остаётся смонтированным: черновик и результат переживают просмотр других вкладок. */}
+        <motion.div
+          initial={false}
+          animate={{ opacity: tab === "translate" ? 1 : 0 }}
+          transition={{ duration: reduce ? 0.1 : 0.18, ease: EASE_OUT }}
+          aria-hidden={tab !== "translate"}
+          inert={tab !== "translate"}
+          className="absolute inset-x-5 bottom-5 top-0 flex min-h-0 flex-col"
+          style={{ pointerEvents: tab === "translate" ? "auto" : "none" }}
+        >
+          <TranslateTab prefill={prefill} settings={settings} />
+        </motion.div>
+
+        {/* Остальные вкладки монтируются при открытии, чтобы списки перечитывали свежие данные. */}
         <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: reduce ? 0.1 : 0.18, ease: EASE_OUT } }}
-            exit={{ opacity: 0, transition: { duration: reduce ? 0.1 : 0.12 } }}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            {tab === "translate" && <TranslateTab prefill={prefill} settings={settings} />}
-            {tab === "history" && <HistoryTab favorites={false} settings={settings} onOpen={openInTranslate} />}
-            {tab === "favorites" && <HistoryTab favorites settings={settings} onOpen={openInTranslate} />}
-            {tab === "settings" && <SettingsTab onSettings={setSettings} />}
-          </motion.div>
+          {tab !== "translate" && (
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: reduce ? 0.1 : 0.18, ease: EASE_OUT } }}
+              exit={{ opacity: 0, transition: { duration: reduce ? 0.1 : 0.12 } }}
+              className="absolute inset-x-5 bottom-5 top-0 flex min-h-0 flex-col"
+            >
+              {tab === "history" && <HistoryTab favorites={false} settings={settings} onOpen={openInTranslate} />}
+              {tab === "favorites" && <HistoryTab favorites settings={settings} onOpen={openInTranslate} />}
+              {tab === "settings" && <SettingsTab onSettings={setSettings} />}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>

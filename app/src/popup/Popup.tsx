@@ -1,14 +1,30 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LogicalSize } from "@tauri-apps/api/window";
+import { currentMonitor, LogicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { listen, win } from "../lib/tauri";
 import { AnimatePresence, motion, useReducedMotion, type Transition, type Variants } from "motion/react";
 import { api, engineLabel, errorHint, errorText, posName, speak, type Settings, type TranslateResult } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { applyTheme } from "../lib/theme";
+import { FavoriteController } from "../main/latestRequest";
 import { Badge, IconButton, Pill } from "../ui";
 
 type Status = "loading" | "result" | "error" | "input";
-type Show = { text: string; target: string; detected: string | null; clipboardReplaced: boolean };
+type Show = {
+  text: string;
+  target: string;
+  detected: string | null;
+  clipboardReplaced: boolean;
+  requestId: number;
+  canReplace: boolean;
+};
+type PopupError = { message: string; requestId: number };
+type ReplaceContext = { requestId: number; sourceText: string };
+type ReplaceState = "idle" | "pending" | "done" | "failed";
+type ReplaceFocusGuard = {
+  attempt: number;
+  requestId: number;
+  phase: "pending" | "recovery";
+};
 /** Подтверждение замены текста: пилюля на 2 секунды. overlay — попап уже на экране, окно не наше. */
 type Toast = { text: string; overlay: boolean };
 /** Ошибка на карточке: заголовок и строка «что делать». */
@@ -18,6 +34,8 @@ type ErrorState = { title: string; hint: string };
 const CARD_W = 430;
 const CARD_H_DEFAULT = 260;
 const MARGIN = 64;
+const COMPACT_MARGIN = 16;
+const COMPACT_WORK_AREA_H = 520;
 const TOAST_MS = 2000;
 // Поле карточки 14 (design/bento). В свёрнутой капсуле оно 4 по горизонтали и 6 по вертикали:
 // пилюля языков сама даёт свои 14, поэтому содержимое отступает на 18, а капсула выходит 46 высотой.
@@ -69,19 +87,32 @@ export default function Popup() {
   const [clipNote, setClipNote] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [box, setBox] = useState({ w: 160, h: PILL_H });
+  const [maxCardHeight, setMaxCardHeight] = useState<number | null>(null);
+  const [frameMargin, setFrameMargin] = useState(MARGIN);
   const [hidden, setHidden] = useState(true);
   const [closing, setClosing] = useState(false);
   const [session, setSession] = useState(0);
   const [toast, setToast] = useState<Toast | null>(null);
   const [toastOut, setToastOut] = useState(false);
+  const [replaceRequestId, setReplaceRequestId] = useState<number | null>(null);
+  const [replaceState, setReplaceState] = useState<ReplaceState>("idle");
+  const [replaceError, setReplaceError] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
   const pinnedRef = useRef(false);
   pinnedRef.current = pinned;
   const cardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const debounce = useRef<number | undefined>(undefined);
+  const localRequestRef = useRef(0);
+  const backendRequestRef = useRef<number | null>(null);
+  const replaceContextRef = useRef<ReplaceContext | null>(null);
+  const replaceAttemptRef = useRef(0);
+  const replacePendingRef = useRef(false);
+  const replaceFocusGuardRef = useRef<ReplaceFocusGuard | null>(null);
+  const favoriteControllerRef = useRef(new FavoriteController());
   // true, если в этой сессии капсула уже была развёрнута — отличает морфинг пилюли от обычного resize.
   const wasExpandedRef = useRef(false);
   // Размеры прошлого показа: с ними новая сессия монтируется сразу в нужной форме.
@@ -90,16 +121,28 @@ export default function Popup() {
   const inputHRef = useRef(190);
   const inputModeRef = useRef(false);
   inputModeRef.current = inputMode;
-  // Текущий размер окна на стороне Rust — чтобы не дёргать innerSize() на каждое изменение.
   const winSizeRef = useRef({ w: CARD_W + MARGIN * 2, h: CARD_H_DEFAULT + MARGIN * 2 });
-  const pendingShrinkRef = useRef<{ w: number; h: number } | null>(null);
+  const pendingFitRef = useRef<{ w: number; h: number } | null>(null);
+  const fittingRef = useRef(false);
 
   function hideNow() {
+    window.clearTimeout(debounce.current);
+    localRequestRef.current += 1;
+    backendRequestRef.current = null;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
     setHidden(true);
     win?.hide();
   }
 
   function closeAnimated() {
+    window.clearTimeout(debounce.current);
+    localRequestRef.current += 1;
+    backendRequestRef.current = null;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
     setClosing(true);
   }
 
@@ -123,6 +166,16 @@ export default function Popup() {
   function handleShow(payload: Show) {
     // Обычный поток сильнее тоста: таймер отменяется, пилюля пропадает сразу.
     window.clearTimeout(toastTimer.current);
+    window.clearTimeout(debounce.current);
+    localRequestRef.current += 1;
+    backendRequestRef.current = payload.requestId;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
+    replaceContextRef.current = payload.canReplace && payload.text
+      ? { requestId: payload.requestId, sourceText: payload.text }
+      : null;
+    favoriteControllerRef.current.clear();
     setToast(null);
     setToastOut(false);
     setSession((n) => n + 1);
@@ -130,8 +183,9 @@ export default function Popup() {
     setClosing(false);
     wasExpandedRef.current = false;
     winSizeRef.current = { w: CARD_W + MARGIN * 2, h: CARD_H_DEFAULT + MARGIN * 2 };
-    pendingShrinkRef.current = null;
-    setResult(null); setError(null); setFavorite(false); setShowOriginal(false); setPinned(false); setCopied(false);
+    pendingFitRef.current = null;
+    setResult(null); setError(null); setFavorite(false); setShowOriginal(false); setCopied(false);
+    setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setSource(payload.text); setTarget(payload.target); setDetected(payload.detected); setClipNote(payload.clipboardReplaced);
     if (payload.text) {
       setInputMode(false); setStatus("loading"); setExpanded(false);
@@ -154,32 +208,87 @@ export default function Popup() {
     api.getSettings().then((s) => { setSettings(s); applyTheme(s.theme); }).catch(() => undefined);
     const subs = [
       listen<Show>("popup:show", ({ payload }) => handleShow(payload)),
-      listen<TranslateResult>("popup:result", ({ payload }) => applyResult(payload)),
-      listen<{ message: string }>("popup:error", ({ payload }) => handleError(payload.message)),
+      listen<TranslateResult>("popup:result", ({ payload }) => {
+        if (payload.requestId === backendRequestRef.current) applyResult(payload, payload.requestId);
+      }),
+      listen<PopupError>("popup:error", ({ payload }) => {
+        if (payload.requestId === backendRequestRef.current) handleError(payload.message);
+      }),
       listen<Toast>("popup:toast", ({ payload }) => handleToast(payload)),
       // Настройки правятся в главном окне — попап узнаёт о смене темы и шрифта отсюда.
       listen<Settings>("settings:changed", ({ payload }) => { setSettings(payload); applyTheme(payload.theme); }),
-      win?.onFocusChanged(({ payload: focused }) => { if (!focused && !pinnedRef.current) hideNow(); }),
+      win?.onFocusChanged(({ payload: focused }) => {
+        const guard = replaceFocusGuardRef.current;
+        if (focused) {
+          if (guard?.phase === "recovery") replaceFocusGuardRef.current = null;
+          return;
+        }
+        if (pinnedRef.current) return;
+        if (
+          guard
+          && guard.attempt === replaceAttemptRef.current
+          && guard.requestId === replaceContextRef.current?.requestId
+        ) return;
+
+        const attempt = replaceAttemptRef.current;
+        const requestId = replaceContextRef.current?.requestId ?? null;
+        void win?.isFocused().then((isFocused) => {
+          if (
+            isFocused
+            || pinnedRef.current
+            || replacePendingRef.current
+            || attempt !== replaceAttemptRef.current
+            || requestId !== (replaceContextRef.current?.requestId ?? null)
+          ) return;
+          hideNow();
+        });
+      }),
     ];
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") hideNow(); };
     window.addEventListener("keydown", onKey);
     // Отладка вёрстки в обычном браузере: window.__utDemo.show({...}) / .result({...}) / .error("…")
-    (window as unknown as { __utDemo: unknown }).__utDemo = { show: handleShow, result: applyResult, error: handleError };
+    (window as unknown as { __utDemo: unknown }).__utDemo = {
+      show: handleShow,
+      result: (value: TranslateResult) => applyResult(value, value.requestId),
+      error: handleError,
+    };
     return () => {
+      favoriteControllerRef.current.clear();
       subs.forEach((p) => p?.then((un) => un()));
       window.removeEventListener("keydown", onKey);
     };
   }, []);
 
-  function applyResult(r: TranslateResult) {
-    setResult(r); setDetected(r.detected); setTarget(r.target); setFavorite(false); setStatus("result"); setExpanded(true);
+  function applyResult(r: TranslateResult, replacementRequestId: number | null = null) {
+    favoriteControllerRef.current.accept(r.historyId, r.isFavorite);
+    const context = replaceContextRef.current;
+    replacePendingRef.current = false;
+    setReplaceRequestId(context?.requestId === replacementRequestId ? replacementRequestId : null);
+    setReplaceState("idle");
+    setReplaceError(null);
+    setResult(r); setDetected(r.detected); setTarget(r.target); setFavorite(r.isFavorite); setStatus("result"); setExpanded(true);
   }
 
-  async function translateNow(text: string, to?: string) {
+  async function translateNow(text: string, to?: string, replacementRequestId: number | null = null) {
+    window.clearTimeout(debounce.current);
+    debounce.current = undefined;
     if (!text.trim()) return;
+    favoriteControllerRef.current.clear();
+    backendRequestRef.current = null;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
+    const request = ++localRequestRef.current;
+    setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setStatus("loading"); setError(null);
-    try { applyResult(await api.translate(text, to)); }
-    catch (e) { setError({ title: errorText(e), hint: errorHint(e) }); setStatus("error"); }
+    try {
+      const translated = await api.translate(text, to);
+      if (request === localRequestRef.current) applyResult(translated, replacementRequestId);
+    } catch (e) {
+      if (request === localRequestRef.current) {
+        setError({ title: errorText(e), hint: errorHint(e) }); setStatus("error");
+      }
+    }
   }
 
   // Размер капсулы: пилюля или карточка по фактической высоте содержимого.
@@ -194,10 +303,12 @@ export default function Popup() {
     }
     const el = cardRef.current;
     if (!el) return;
-    if (inputModeRef.current) inputHRef.current = el.offsetHeight;
-    setBox({ w: CARD_W, h: el.offsetHeight });
+    const scroll = scrollRef.current;
+    const naturalHeight = scroll ? el.offsetHeight - scroll.clientHeight + scroll.scrollHeight : el.offsetHeight;
+    if (inputModeRef.current) inputHRef.current = naturalHeight;
+    setBox({ w: CARD_W, h: naturalHeight });
   };
-  useLayoutEffect(measure, [expanded, status, result, showOriginal, input, error, clipNote, session]);
+  useLayoutEffect(measure, [expanded, status, result, showOriginal, input, error, clipNote, session, replaceState, replaceError]);
   // Шрифты и перенос строк доезжают позже коммита — следим за реальной высотой.
   useEffect(() => {
     const el = cardRef.current;
@@ -207,40 +318,84 @@ export default function Popup() {
     return () => ro.disconnect();
   }, [session]);
 
-  // Рост окна — сразу вместе с box; ужатие — только в onAnimationComplete внешней капсулы.
+  // Все resize/reposition идут через одну очередь. Поэтому быстрый result→loading→result
+  // не может завершиться устаревшим сжатием от loading.
   function fitWindow(cardW: number, cardH: number) {
-    const targetW = cardW + MARGIN * 2;
-    const targetH = cardH + MARGIN * 2;
-    const cur = winSizeRef.current;
-    if (targetW > cur.w || targetH > cur.h) {
-      const next = { w: Math.max(targetW, cur.w), h: Math.max(targetH, cur.h) };
-      pendingShrinkRef.current = null;
-      winSizeRef.current = next;
-      void win?.setSize(new LogicalSize(next.w, next.h));
-    } else if (targetW < cur.w || targetH < cur.h) {
-      pendingShrinkRef.current = { w: targetW, h: targetH };
-    }
+    pendingFitRef.current = { w: cardW, h: cardH };
+    if (fittingRef.current) return;
+    fittingRef.current = true;
+    void (async () => {
+      try {
+        while (pendingFitRef.current) {
+          const requested = pendingFitRef.current;
+          pendingFitRef.current = null;
+          if (!win) {
+            const margin = window.innerHeight < COMPACT_WORK_AREA_H ? COMPACT_MARGIN : MARGIN;
+            setFrameMargin(margin);
+            setMaxCardHeight(Math.max(PILL_H, window.innerHeight - margin * 2));
+            continue;
+          }
+          const [monitor, position] = await Promise.all([currentMonitor(), win.outerPosition()]);
+          if (pendingFitRef.current) continue;
+          const scale = monitor?.scaleFactor ?? await win.scaleFactor();
+          const work = monitor?.workArea;
+          const maxWindowH = work ? work.size.height / scale : requested.h + MARGIN * 2;
+          const margin = maxWindowH < COMPACT_WORK_AREA_H ? COMPACT_MARGIN : MARGIN;
+          const maxCardH = Math.max(PILL_H, maxWindowH - margin * 2);
+          setFrameMargin(margin);
+          setMaxCardHeight(maxCardH);
+          const next = {
+            w: requested.w + margin * 2,
+            h: Math.min(requested.h, maxCardH) + margin * 2,
+          };
+          await win.setSize(new LogicalSize(next.w, next.h));
+          winSizeRef.current = next;
+          if (work) {
+            const widthPx = next.w * scale;
+            const heightPx = next.h * scale;
+            const left = work.position.x;
+            const top = work.position.y;
+            const right = left + work.size.width;
+            const bottom = top + work.size.height;
+            const x = Math.round(Math.min(Math.max(position.x, left), Math.max(left, right - widthPx)));
+            const y = Math.round(Math.min(Math.max(position.y, top), Math.max(top, bottom - heightPx)));
+            await win.setPosition(new PhysicalPosition(x, y));
+          }
+        }
+      } finally {
+        fittingRef.current = false;
+        if (pendingFitRef.current) fitWindow(pendingFitRef.current.w, pendingFitRef.current.h);
+      }
+    })();
   }
   // Тост в своём окне живёт в размере, который выставил Rust, — карточку тут не меряем.
   const soloToast = toast !== null && !toast.overlay;
   useEffect(() => { if (!hidden && !soloToast) fitWindow(box.w, box.h); }, [box.w, box.h, hidden, soloToast]);
 
   function onCapsuleAnimationComplete() {
-    if (closing) { setClosing(false); hideNow(); return; }
-    const p = pendingShrinkRef.current;
-    if (p) {
-      pendingShrinkRef.current = null;
-      winSizeRef.current = p;
-      void win?.setSize(new LogicalSize(p.w, p.h));
-    }
+    if (closing) { setClosing(false); hideNow(); }
   }
 
   const currentText = inputMode ? input : source;
 
+  function replacementRequestFor(text: string) {
+    const context = replaceContextRef.current;
+    return !inputMode && context?.sourceText === text ? context.requestId : null;
+  }
+
   function onInput(v: string) {
     setInput(v);
     window.clearTimeout(debounce.current);
-    if (!v.trim()) { setResult(null); setStatus("input"); return; }
+    favoriteControllerRef.current.clear();
+    backendRequestRef.current = null;
+    localRequestRef.current += 1;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
+    replaceContextRef.current = null;
+    setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
+    setResult(null); setFavorite(false); setStatus("input");
+    if (!v.trim()) return;
     debounce.current = window.setTimeout(() => translateNow(v), 600);
   }
 
@@ -248,15 +403,21 @@ export default function Popup() {
     if (!settings) return;
     const next = target === settings.primaryLang ? settings.secondaryLang : settings.primaryLang;
     setTarget(next);
-    translateNow(currentText, next);
+    translateNow(currentText, next, replacementRequestFor(currentText));
   }
 
   async function toggleFavorite() {
     if (!result?.historyId) return;
+    const historyId = result.historyId;
     const next = !favorite;
     setFavorite(next);
     if (next) { setStarPop(true); window.setTimeout(() => setStarPop(false), 240); }
-    try { await api.setFavorite(result.historyId, next); } catch { setFavorite(!next); }
+    const rollback = await favoriteControllerRef.current.mutate(
+      historyId,
+      next,
+      () => api.setFavorite(historyId, next),
+    );
+    if (rollback !== null) setFavorite(rollback);
   }
 
   function copy() {
@@ -264,7 +425,38 @@ export default function Popup() {
     api.copy(result.text).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); });
   }
 
+  const canReplace = status === "result"
+    && result !== null
+    && replaceContextRef.current !== null
+    && replaceRequestId === replaceContextRef.current.requestId
+    && source === replaceContextRef.current.sourceText
+    && replaceState === "idle";
+
+  async function replaceSelection() {
+    const context = replaceContextRef.current;
+    if (!canReplace || !context || !result || replaceState !== "idle" || replacePendingRef.current) return;
+    replacePendingRef.current = true;
+    const attempt = ++replaceAttemptRef.current;
+    replaceFocusGuardRef.current = { attempt, requestId: context.requestId, phase: "pending" };
+    setReplaceState("pending");
+    setReplaceError(null);
+    try {
+      await api.replacePopupTranslation(context.requestId, context.sourceText, result.text);
+      if (attempt === replaceAttemptRef.current) setReplaceState("done");
+    } catch (e) {
+      if (attempt !== replaceAttemptRef.current) return;
+      replacePendingRef.current = false;
+      const guard = replaceFocusGuardRef.current;
+      if (guard?.attempt === attempt && guard.requestId === context.requestId) {
+        guard.phase = "recovery";
+      }
+      setReplaceState("failed");
+      setReplaceError(`Не удалось заменить текст: ${errorText(e)}. Выделите текст заново и вызовите перевод своим хоткеем.`);
+    }
+  }
+
   const fontSize = settings?.fontSize ?? 21;
+  const visibleBoxHeight = expanded && maxCardHeight !== null ? Math.min(box.h, maxCardHeight) : box.h;
 
   // Морфинг пилюля→карточка — только на первом раскрытии сессии, дальше это обычный resize.
   const capsuleTransition = expanded && !wasExpandedRef.current ? morphT : resizeT;
@@ -281,7 +473,7 @@ export default function Popup() {
       style={{
         width: "fit-content", height: PILL_H, borderRadius: 999, padding: "0 18px",
         fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
-        ...(toast.overlay ? { position: "absolute" as const, left: MARGIN + 12, top: MARGIN + 12, zIndex: 2, pointerEvents: "none" as const } : {}),
+        ...(toast.overlay ? { position: "absolute" as const, left: frameMargin + 12, top: frameMargin + 12, zIndex: 2, pointerEvents: "none" as const } : {}),
       }}
       initial={false}
       animate={{ opacity: toastOut ? 0 : 1 }}
@@ -292,28 +484,37 @@ export default function Popup() {
     </motion.div>
   );
 
-  if (soloToast) return <div style={{ padding: MARGIN }} className="h-full w-full">{toastNode}</div>;
+  if (soloToast) return <div style={{ padding: frameMargin }} className="h-full w-full">{toastNode}</div>;
 
-  // Ряд действий под переводом: копировать, озвучить, избранное, раскрытие оригинала.
-  const actions = result && (
-    <div className="flex items-center gap-2">
-      <Pill variant="water" size="md" onClick={copy}>
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={copied ? "done" : "copy"}
-            initial={{ opacity: 0, filter: "blur(2px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, filter: "blur(2px)" }}
-            transition={{ duration: reduce ? 0.15 : 0.18 }}
-            className="flex items-center gap-1.5"
-          >
-            <Icon name={copied ? "check" : "copy"} size={15} />
-            {copied ? "Скопировано" : "Копировать"}
-          </motion.span>
-        </AnimatePresence>
+  // Действия переносятся целыми группами: на узкой рабочей области ни одна кнопка не обрезается.
+  const actions = (
+    <div className="popup-footer">
+      <div className="popup-footer-actions">
+      <Pill
+        variant="water"
+        size="md"
+        disabled={!canReplace}
+        aria-label="Заменить"
+        title={result ? `Заменить на «${result.text}»` : "Дождитесь результата перевода"}
+        onClick={replaceSelection}
+      >
+        {replaceState === "pending"
+          ? "Заменяем…"
+          : replaceState === "done"
+            ? "Заменено"
+            : replaceState === "failed"
+              ? "Выделите заново"
+              : "Заменить"}
       </Pill>
+      {status === "result" && result && (<>
+      <IconButton
+        icon={copied ? "check" : "copy"}
+        label={copied ? "Скопировано" : "Копировать"}
+        size={36}
+        onClick={copy}
+      />
       {!result.wordMode && (
-        <Pill size="md" icon="speaker" onClick={() => speak(result.text, result.target)}>Озвучить</Pill>
+        <IconButton icon="speaker" label="Озвучить" size={36} onClick={() => speak(result.text, result.target)} />
       )}
       <IconButton
         icon="star"
@@ -325,10 +526,11 @@ export default function Popup() {
         onClick={toggleFavorite}
         disabled={!result.historyId}
       />
-      <div className="flex-1" />
-      {!inputMode && !result.wordMode && (
+      </>)}
+      </div>
+      {status === "result" && result && !inputMode && !result.wordMode && (
         <button
-          className="flex items-center gap-1.5 pr-1.5 text-[12px] transition-colors"
+          className="popup-original-toggle flex items-center gap-1.5 pr-1.5 text-[12px] transition-colors"
           style={{ color: showOriginal ? "var(--water)" : "var(--ink-3)" }}
           aria-expanded={showOriginal}
           onClick={() => setShowOriginal((s) => !s)}
@@ -337,12 +539,13 @@ export default function Popup() {
           <Icon name="chevron" size={12} className={`chevron ${showOriginal ? "rotate-180" : ""}`} />
         </button>
       )}
+      {replaceError && <div className="popup-replace-error" role="alert">{replaceError}</div>}
     </div>
   );
 
   return (
     <div
-      style={{ padding: MARGIN, position: "relative" }}
+      style={{ padding: frameMargin, position: "relative" }}
       className="h-full w-full"
       onMouseDown={(e) => { if (e.target === e.currentTarget) hideNow(); }}
     >
@@ -352,13 +555,17 @@ export default function Popup() {
         role="dialog"
         aria-label="UTranslate — перевод"
         initial={false}
-        animate={{ width: box.w, height: box.h, borderRadius: expanded ? 26 : 999, opacity: closing ? 0 : 1, scale: closing ? 0.97 : 1 }}
+        animate={{ width: box.w, height: visibleBoxHeight, borderRadius: expanded ? 26 : 999, opacity: closing ? 0 : 1, scale: closing ? 0.97 : 1 }}
         transition={{ width: capsuleTransition, height: capsuleTransition, borderRadius: capsuleTransition, opacity: exitT, scale: exitT }}
         onAnimationComplete={onCapsuleAnimationComplete}
       >
         <div
           ref={cardRef}
-          style={{ width: CARD_W, padding: expanded ? PAD_CARD : PAD_PILL }}
+          style={{
+            width: CARD_W,
+            height: expanded && maxCardHeight !== null && box.h > maxCardHeight ? maxCardHeight : undefined,
+            padding: expanded ? PAD_CARD : PAD_PILL,
+          }}
           className="flex flex-col gap-[13px]"
         >
           <div className="flex items-center gap-2.5">
@@ -404,7 +611,9 @@ export default function Popup() {
           </div>
 
           {expanded && (
-            <div className="flex flex-col gap-[13px]" aria-live="polite">
+            <div className="flex min-h-0 flex-1 flex-col gap-[13px]" aria-live="polite">
+              <div ref={scrollRef} data-popup-scroll className="popup-scroll min-h-0 flex-1">
+                <div className="flex flex-col gap-[13px]">
               {inputMode && (
                 <div className="flex flex-col gap-[9px] px-1">
                   <textarea
@@ -442,7 +651,14 @@ export default function Popup() {
                         <span className="text-[13px] leading-[1.5] text-ink-2">{error.hint}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Pill variant="water" size="md" icon="refresh" onClick={() => translateNow(currentText, target)}>Повторить</Pill>
+                        <Pill
+                          variant="water"
+                          size="md"
+                          icon="refresh"
+                          onClick={() => translateNow(currentText, target, replacementRequestFor(currentText))}
+                        >
+                          Повторить
+                        </Pill>
                         <Pill size="md" onClick={() => api.openMain(currentText || undefined)}>Открыть окно</Pill>
                       </div>
                     </motion.div>
@@ -480,6 +696,7 @@ export default function Popup() {
                             {showOriginal && (
                               <motion.div
                                 key="orig"
+                                data-popup-original
                                 variants={fx()}
                                 initial="hidden"
                                 animate="visible"
@@ -499,11 +716,13 @@ export default function Popup() {
                           </div>
                         </div>
                       )}
-                      {actions}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
+                </div>
+              </div>
+              {(status === "loading" || status === "result") && actions}
             </div>
           )}
         </div>

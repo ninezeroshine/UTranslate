@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test:frontend": "node --experimental-strip-types --test src/main/latestRequest.test.ts",
+    "test:popup": "playwright test --config ../tools/tests/playwright.config.cjs --reporter=line --workers=1",
     "preview": "vite preview",
     "tauri": "tauri",
     "release": "node scripts/release.mjs"
@@ -23,6 +25,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@tauri-apps/cli": "^2",
     "@types/node": "^26.4.1",
     "@types/react": "^19.1.8",

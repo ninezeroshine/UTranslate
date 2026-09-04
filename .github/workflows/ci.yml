@@ -36,6 +36,22 @@ jobs:
         run: pnpm exec tsc --noEmit -p tsconfig.json
         working-directory: app
 
+      - name: Frontend regression tests
+        run: pnpm test:frontend
+        working-directory: app
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: app
+
+      - name: Popup regression tests
+        run: pnpm test:popup
+        working-directory: app
+
+      - name: Frontend build
+        run: pnpm build
+        working-directory: app
+
       - name: Cargo check
         run: cargo check
         working-directory: app/src-tauri

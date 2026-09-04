@@ -6,6 +6,7 @@ import {
 } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { Badge, Card, IconButton, Pill } from "../ui";
+import { FavoriteController, TranslationController } from "./latestRequest";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const COPIED_MS = 1500;
@@ -25,39 +26,91 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
   const [copied, setCopied] = useState(false);
   const [favorite, setFavorite] = useState(false);
   const [starPop, setStarPop] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-
-  useEffect(() => { if (prefill.n > 0) setSource(prefill.text); }, [prefill]);
+  const controller = useRef(new TranslationController());
+  const favorites = useRef(new FavoriteController());
 
   useEffect(() => {
-    window.clearTimeout(timer.current);
+    if (prefill.n > 0) {
+      controller.current.change("prefill");
+      setSource(prefill.text);
+      setResult(null);
+      favorites.current.clear();
+      setFavorite(false);
+      setStarPop(false);
+      setCopied(false);
+      setError(null);
+      setStatus(prefill.text.trim() ? "loading" : "idle");
+    }
+  }, [prefill]);
+
+  useEffect(() => () => {
+    controller.current.change("unmount");
+    favorites.current.clear();
+  }, []);
+
+  useEffect(() => {
+    controller.current.clearPending();
     if (!source.trim()) { setResult(null); setError(null); setStatus("idle"); return; }
-    timer.current = window.setTimeout(run, DEBOUNCE_MS);
-    return () => window.clearTimeout(timer.current);
+    controller.current.schedule(run, DEBOUNCE_MS);
+    return () => controller.current.clearPending();
   }, [source, target]);
 
   async function run() {
+    const token = controller.current.begin();
     setStatus("loading"); setError(null);
     try {
-      setResult(await api.translate(source, target));
-      setFavorite(false);
+      const next = await api.translate(source, target);
+      if (!controller.current.isCurrent(token)) return;
+      setResult(next);
+      favorites.current.accept(next.historyId, next.isFavorite);
+      setFavorite(next.isFavorite);
+      setStarPop(false);
+      setCopied(false);
       setStatus("idle");
     } catch (e) {
+      if (!controller.current.isCurrent(token)) return;
       setError({ title: errorText(e), hint: errorHint(e) });
       setStatus("error");
     }
   }
 
+  function changeSource(next: string) {
+    controller.current.change("edit");
+    setSource(next);
+    setResult(null);
+    favorites.current.clear();
+    setFavorite(false);
+    setStarPop(false);
+    setCopied(false);
+    setError(null);
+    setStatus(next.trim() ? "loading" : "idle");
+  }
+
   /** Поменять местами: перевод уходит в исходник, найденный язык становится целевым. */
   function swap() {
     if (!result) return;
+    controller.current.change("swap");
     setTarget(result.detected);
     setSource(result.text);
+    setResult(null);
+    favorites.current.clear();
+    setFavorite(false);
+    setStarPop(false);
+    setCopied(false);
+    setStatus("loading");
   }
 
   function switchTarget() {
     if (!settings) return;
+    controller.current.change("target");
     setTarget(targetLabel === settings.primaryLang ? settings.secondaryLang : settings.primaryLang);
+    setResult(null);
+    favorites.current.clear();
+    setFavorite(false);
+    setStarPop(false);
+    setCopied(false);
+    setError(null);
+    setStatus("loading");
   }
 
   function copy() {
@@ -70,10 +123,12 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
 
   async function toggleFavorite() {
     if (!result?.historyId) return;
+    const historyId = result.historyId;
     const next = !favorite;
     setFavorite(next);
     if (next) { setStarPop(true); window.setTimeout(() => setStarPop(false), 240); }
-    try { await api.setFavorite(result.historyId, next); } catch { setFavorite(!next); }
+    const rollback = await favorites.current.mutate(historyId, next, () => api.setFavorite(historyId, next));
+    if (rollback !== null) setFavorite(rollback);
   }
 
   const engines = settings?.engines ?? ["google", "bing", "mymemory"];
@@ -98,11 +153,11 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
             </span>
             {detected && <Badge tone="mist">определён</Badge>}
             <div className="flex-1" />
-            {source && <IconButton icon="close" label="Очистить" onClick={() => setSource("")} />}
+            {source && <IconButton icon="close" label="Очистить" onClick={() => changeSource("")} />}
           </div>
           <textarea
             value={source}
-            onChange={(e) => setSource(e.target.value)}
+            onChange={(e) => changeSource(e.target.value)}
             placeholder="Введите или вставьте текст…"
             aria-label="Исходный текст"
             spellCheck={false}

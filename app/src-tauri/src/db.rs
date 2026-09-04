@@ -44,7 +44,15 @@ impl Db {
     }
 
     /// Дубль по паре (оригинал, целевой язык) обновляет запись и дату, не создаёт новую.
-    pub fn add(&self, source: &str, result: &str, source_lang: &str, target_lang: &str, engine: &str, mode: &str) -> rusqlite::Result<i64> {
+    pub fn add(
+        &self,
+        source: &str,
+        result: &str,
+        source_lang: &str,
+        target_lang: &str,
+        engine: &str,
+        mode: &str,
+    ) -> rusqlite::Result<(i64, bool)> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
@@ -53,14 +61,20 @@ impl Db {
             "INSERT INTO translations (source_text, result_text, source_lang, target_lang, engine, mode, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(source_text, target_lang) DO UPDATE SET
-               result_text = excluded.result_text, engine = excluded.engine, mode = excluded.mode, created_at = excluded.created_at
-             RETURNING id",
+               result_text = excluded.result_text, source_lang = excluded.source_lang,
+               engine = excluded.engine, mode = excluded.mode, created_at = excluded.created_at
+             RETURNING id, is_favorite",
             params![source, result, source_lang, target_lang, engine, mode, now],
-            |r| r.get(0),
+            |r| Ok((r.get(0)?, r.get::<_, i32>(1)? != 0)),
         )
     }
 
-    pub fn list(&self, query: &str, favorites_only: bool, limit: u32) -> rusqlite::Result<Vec<Entry>> {
+    pub fn list(
+        &self,
+        query: &str,
+        favorites_only: bool,
+        limit: u32,
+    ) -> rusqlite::Result<Vec<Entry>> {
         let conn = self.0.lock().unwrap();
         let like = format!("%{}%", query.trim());
         let mut stmt = conn.prepare(
@@ -70,32 +84,38 @@ impl Db {
                AND (?3 = 0 OR is_favorite = 1)
              ORDER BY created_at DESC LIMIT ?4",
         )?;
-        let rows = stmt.query_map(params![query.trim(), like, favorites_only as i32, limit], |r| {
-            Ok(Entry {
-                id: r.get(0)?,
-                source_text: r.get(1)?,
-                result_text: r.get(2)?,
-                source_lang: r.get(3)?,
-                target_lang: r.get(4)?,
-                engine: r.get(5)?,
-                mode: r.get(6)?,
-                is_favorite: r.get::<_, i32>(7)? != 0,
-                created_at: r.get(8)?,
-            })
-        })?;
+        let rows = stmt.query_map(
+            params![query.trim(), like, favorites_only as i32, limit],
+            |r| {
+                Ok(Entry {
+                    id: r.get(0)?,
+                    source_text: r.get(1)?,
+                    result_text: r.get(2)?,
+                    source_lang: r.get(3)?,
+                    target_lang: r.get(4)?,
+                    engine: r.get(5)?,
+                    mode: r.get(6)?,
+                    is_favorite: r.get::<_, i32>(7)? != 0,
+                    created_at: r.get(8)?,
+                })
+            },
+        )?;
         rows.collect()
     }
 
     pub fn set_favorite(&self, id: i64, favorite: bool) -> rusqlite::Result<()> {
-        self.0
-            .lock()
-            .unwrap()
-            .execute("UPDATE translations SET is_favorite = ?1 WHERE id = ?2", params![favorite as i32, id])?;
+        self.0.lock().unwrap().execute(
+            "UPDATE translations SET is_favorite = ?1 WHERE id = ?2",
+            params![favorite as i32, id],
+        )?;
         Ok(())
     }
 
     pub fn delete(&self, id: i64) -> rusqlite::Result<()> {
-        self.0.lock().unwrap().execute("DELETE FROM translations WHERE id = ?1", params![id])?;
+        self.0
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM translations WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -104,14 +124,23 @@ impl Db {
         let esc = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
         let mut out = String::from("source;translation;from;to\n");
         for e in self.list("", true, 100_000)? {
-            out.push_str(&format!("{};{};{};{}\n", esc(&e.source_text), esc(&e.result_text), e.source_lang, e.target_lang));
+            out.push_str(&format!(
+                "{};{};{};{}\n",
+                esc(&e.source_text),
+                esc(&e.result_text),
+                e.source_lang,
+                e.target_lang
+            ));
         }
         Ok(out)
     }
 
     /// Очистка истории не трогает избранное.
     pub fn clear(&self) -> rusqlite::Result<()> {
-        self.0.lock().unwrap().execute("DELETE FROM translations WHERE is_favorite = 0", [])?;
+        self.0
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM translations WHERE is_favorite = 0", [])?;
         Ok(())
     }
 }
@@ -124,14 +153,32 @@ mod tests {
     fn dedupe_and_favorites() {
         let dir = std::env::temp_dir().join(format!("utranslate-test-{}.db", std::process::id()));
         let db = Db::open(&dir).unwrap();
-        let a = db.add("hello", "привет", "en", "ru", "google", "popup").unwrap();
-        let b = db.add("hello", "привет!", "en", "ru", "bing", "popup").unwrap();
+        let (a, favorite) = db
+            .add("hello", "привет", "en", "ru", "google", "popup")
+            .unwrap();
+        assert!(!favorite);
+        let (b, favorite) = db
+            .add("hello", "привет!", "en", "ru", "bing", "popup")
+            .unwrap();
+        assert!(!favorite);
         assert_eq!(a, b, "дубль должен обновить запись, а не создать новую");
         assert_eq!(db.list("", false, 10).unwrap().len(), 1);
         assert_eq!(db.list("", false, 10).unwrap()[0].result_text, "привет!");
         db.set_favorite(a, true).unwrap();
+        let (c, favorite) = db
+            .add("hello", "привет снова", "en", "ru", "google", "window")
+            .unwrap();
+        assert_eq!(a, c);
+        assert!(
+            favorite,
+            "upsert должен вернуть сохранённое состояние избранного"
+        );
         db.clear().unwrap();
-        assert_eq!(db.list("", true, 10).unwrap().len(), 1, "очистка не трогает избранное");
+        assert_eq!(
+            db.list("", true, 10).unwrap().len(),
+            1,
+            "очистка не трогает избранное"
+        );
         let _ = std::fs::remove_file(&dir);
     }
 }

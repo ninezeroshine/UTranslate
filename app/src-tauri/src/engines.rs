@@ -41,7 +41,24 @@ struct BingSession {
 pub struct Engines {
     http: reqwest::Client,
     bing: Mutex<Option<BingSession>>,
-    cache: Mutex<HashMap<(String, String), Translation>>,
+    cache: Mutex<HashMap<CacheKey, Translation>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct CacheKey {
+    text: String,
+    target: String,
+    hint: Option<String>,
+    order: Vec<String>,
+}
+
+fn cache_key(text: &str, target: &str, hint: Option<&str>, order: &[String]) -> CacheKey {
+    CacheKey {
+        text: text.to_string(),
+        target: target.to_string(),
+        hint: hint.map(String::from),
+        order: order.to_vec(),
+    }
 }
 
 impl Engines {
@@ -52,7 +69,11 @@ impl Engines {
             .cookie_store(true)
             .build()
             .expect("reqwest client");
-        Self { http, bing: Mutex::new(None), cache: Mutex::new(HashMap::new()) }
+        Self {
+            http,
+            bing: Mutex::new(None),
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Длинный текст режется по абзацам на куски до 4500 символов.
@@ -96,7 +117,7 @@ impl Engines {
         hint: Option<&str>,
         order: &[String],
     ) -> Result<Translation, String> {
-        let key = (text.to_string(), target.to_string());
+        let key = cache_key(text, target, hint, order);
         if let Some(t) = self.cache.lock().unwrap().get(&key) {
             return Ok(t.clone());
         }
@@ -197,11 +218,19 @@ impl Engines {
             .text()
             .await
             .map_err(|e| e.to_string())?;
-        let ig = between(&page, "IG:\"", "\"").ok_or("нет IG на странице")?.to_string();
-        let abuse = between(&page, "params_AbusePreventionHelper = [", "]").ok_or("нет токена на странице")?;
+        let ig = between(&page, "IG:\"", "\"")
+            .ok_or("нет IG на странице")?
+            .to_string();
+        let abuse = between(&page, "params_AbusePreventionHelper = [", "]")
+            .ok_or("нет токена на странице")?;
         let mut parts = abuse.split(',');
         let key = parts.next().ok_or("нет key")?.trim().to_string();
-        let token = parts.next().ok_or("нет token")?.trim().trim_matches('"').to_string();
+        let token = parts
+            .next()
+            .ok_or("нет token")?
+            .trim()
+            .trim_matches('"')
+            .to_string();
         *self.bing.lock().unwrap() = Some(BingSession {
             ig: ig.clone(),
             key: key.clone(),
@@ -216,7 +245,11 @@ impl Engines {
         let resp = self
             .http
             .post("https://www.bing.com/ttranslatev3")
-            .query(&[("isVertical", "1"), ("IG", ig.as_str()), ("IID", "translator.5028")])
+            .query(&[
+                ("isVertical", "1"),
+                ("IG", ig.as_str()),
+                ("IID", "translator.5028"),
+            ])
             .form(&[
                 ("fromLang", "auto-detect"),
                 ("text", text),
@@ -240,7 +273,10 @@ impl Engines {
         }
         Ok(Translation {
             text: out.to_string(),
-            detected: item["detectedLanguage"]["language"].as_str().unwrap_or("").to_string(),
+            detected: item["detectedLanguage"]["language"]
+                .as_str()
+                .unwrap_or("")
+                .to_string(),
             target: target.to_string(),
             engine: "bing".into(),
             alternatives: vec![],
@@ -248,7 +284,12 @@ impl Engines {
         })
     }
 
-    async fn mymemory(&self, text: &str, target: &str, hint: Option<&str>) -> Result<Translation, String> {
+    async fn mymemory(
+        &self,
+        text: &str,
+        target: &str,
+        hint: Option<&str>,
+    ) -> Result<Translation, String> {
         let source = hint.unwrap_or("en");
         let pair = format!("{source}|{target}");
         let resp = self
@@ -264,7 +305,10 @@ impl Engines {
         let v: Value = resp.json().await.map_err(|e| e.to_string())?;
         let out = v["responseData"]["translatedText"].as_str().unwrap_or("");
         if out.is_empty() || v["responseStatus"].as_u64() == Some(403) {
-            return Err(v["responseDetails"].as_str().unwrap_or("пустой ответ").to_string());
+            return Err(v["responseDetails"]
+                .as_str()
+                .unwrap_or("пустой ответ")
+                .to_string());
         }
         Ok(Translation {
             text: out.to_string(),
@@ -321,7 +365,11 @@ pub fn guess_lang(text: &str) -> Option<&'static str> {
 
 /// Если текст уже на основном языке — переводим на запасной (swap).
 pub fn pick_target(detected: Option<&str>, primary: &str, secondary: &str) -> String {
-    if detected == Some(primary) { secondary.to_string() } else { primary.to_string() }
+    if detected == Some(primary) {
+        secondary.to_string()
+    } else {
+        primary.to_string()
+    }
 }
 
 /// Словарный режим: одно-два слова без цифр и знаков.
@@ -329,7 +377,8 @@ pub fn is_word_mode(text: &str) -> bool {
     let t = text.trim();
     t.chars().count() <= 30
         && t.split_whitespace().count() <= 2
-        && t.chars().all(|c| c.is_alphabetic() || c == ' ' || c == '-' || c == '\'')
+        && t.chars()
+            .all(|c| c.is_alphabetic() || c == ' ' || c == '-' || c == '\'')
 }
 
 #[cfg(test)]
@@ -347,5 +396,14 @@ mod tests {
         assert!(!is_word_mode("v2.0"));
         assert_eq!(between("x IG:\"ABC\" y", "IG:\"", "\""), Some("ABC"));
         assert_eq!(guess_lang("давай созвонимся после обеда"), Some("ru"));
+    }
+
+    #[test]
+    fn cache_key_tracks_provider_preference_and_source_hint() {
+        let google = vec!["google".to_string(), "bing".to_string()];
+        let bing = vec!["bing".to_string(), "google".to_string()];
+        let base = cache_key("hello", "ru", Some("en"), &google);
+        assert_ne!(base, cache_key("hello", "ru", Some("en"), &bing));
+        assert_ne!(base, cache_key("hello", "ru", Some("de"), &google));
     }
 }

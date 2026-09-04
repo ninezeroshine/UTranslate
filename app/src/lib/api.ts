@@ -11,7 +11,13 @@ export type Translation = {
   alternatives: Alternative[];
   fallbackFrom: string | null;
 };
-export type TranslateResult = Translation & { historyId: number | null; wordMode: boolean };
+export type TranslateResult = Translation & {
+  historyId: number | null;
+  wordMode: boolean;
+  isFavorite: boolean;
+  /** Backend popup events carry an id; direct invoke results use null. */
+  requestId: number | null;
+};
 export type Entry = {
   id: number;
   sourceText: string;
@@ -42,6 +48,8 @@ export type HotkeyStatus = { field: "hotkeyPopup" | "hotkeyReplace" | "hotkeyWin
 export const api = {
   translate: (text: string, target?: string) => invoke<TranslateResult>("translate_text", { text, target }),
   copy: (text: string) => invoke<void>("copy_text", { text }),
+  replacePopupTranslation: (requestId: number, sourceText: string, translatedText: string) =>
+    invoke<void>("replace_popup_translation", { requestId, sourceText, translatedText }),
   openMain: (text?: string) => invoke<void>("open_main", { text }),
   history: (query = "", favoritesOnly = false) => invoke<Entry[]>("history_list", { query, favoritesOnly }),
   setFavorite: (id: number, favorite: boolean) => invoke<void>("history_set_favorite", { id, favorite }),
