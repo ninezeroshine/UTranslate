@@ -231,6 +231,43 @@ html[data-theme="dark"] {
     line-height: 1.45;
   }
 
+  .popup-screen-origin {
+    display: flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px;
+    color: var(--ink-3);
+    font-size: 11px;
+  }
+
+  .popup-screen-origin button {
+    min-height: 28px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-3);
+    font-size: 11px;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+
+  .popup-screen-origin button:hover:not(:disabled) {
+    background: var(--tile);
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
+
+  .popup-screen-origin button:disabled {
+    opacity: 0.55;
+  }
+
+  .popup-source-correction {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 4px 4px;
+  }
+
   .popup-engine-button {
     min-width: 0;
     max-width: 150px;
@@ -686,7 +723,8 @@ html[data-theme="dark"] {
   .popup-engine-button:focus-visible,
   .popup-engine-menu button:focus-visible,
   .popup-edit-trigger:focus-visible,
-  .popup-edit-controls button:focus-visible {
+  .popup-edit-controls button:focus-visible,
+  .popup-screen-origin button:focus-visible {
     outline: none;
     border-color: var(--water-line);
     box-shadow: 0 0 0 3px var(--water-soft);

@@ -33,6 +33,7 @@ export type Settings = {
   hotkeyPopup: string;
   hotkeyReplace: string;
   hotkeyWindow: string;
+  hotkeyScreen: string;
   primaryLang: string;
   secondaryLang: string;
   engines: string[];
@@ -43,7 +44,7 @@ export type Settings = {
   fontSize: number;
 };
 export type UpdateInfo = { version: string; notes: string | null; date: string | null };
-export type HotkeyStatus = { field: "hotkeyPopup" | "hotkeyReplace" | "hotkeyWindow"; error: string | null };
+export type HotkeyStatus = { field: "hotkeyPopup" | "hotkeyReplace" | "hotkeyWindow" | "hotkeyScreen"; error: string | null };
 
 export const api = {
   translate: (text: string, target?: string, engine?: string) =>
@@ -53,6 +54,8 @@ export const api = {
     invoke<boolean>("update_translation_text", { historyId, sourceText, expectedText, text }),
   replacePopupTranslation: (requestId: number, sourceText: string, translatedText: string) =>
     invoke<void>("replace_popup_translation", { requestId, sourceText, translatedText }),
+  translateScreen: () => invoke<void>("translate_screen"),
+  ackScreenCapture: (requestId: number) => invoke<void>("ack_screen_capture", { requestId }),
   openMain: (text?: string) => invoke<void>("open_main", { text }),
   history: (query = "", favoritesOnly = false) => invoke<Entry[]>("history_list", { query, favoritesOnly }),
   setFavorite: (id: number, favorite: boolean) => invoke<void>("history_set_favorite", { id, favorite }),

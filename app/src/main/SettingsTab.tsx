@@ -582,6 +582,7 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
           <div className="flex flex-col gap-2.5">
             {([
               ["hotkeyPopup", "Перевести в попап", cur.hotkeyPopup],
+              ["hotkeyScreen", "Перевести с экрана", cur.hotkeyScreen],
               ["hotkeyReplace", "Заменить выделенное", cur.hotkeyReplace],
               ["hotkeyWindow", "Открыть окно", cur.hotkeyWindow],
             ] as const).map(([field, label, value]) => (
@@ -596,6 +597,9 @@ export function SettingsTab({ onSettings }: { onSettings: (s: Settings) => void 
                 />
               </div>
             ))}
+            <span className="pt-1 text-[11px] leading-[1.45] text-ink-3">
+              Снимок и распознавание остаются на компьютере; в движок перевода отправляется только распознанный текст. OCR сначала поддерживает русский и английский.
+            </span>
           </div>
         </Tile>
 

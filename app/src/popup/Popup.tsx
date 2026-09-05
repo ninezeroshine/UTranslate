@@ -8,7 +8,8 @@ import { applyTheme } from "../lib/theme";
 import { FavoriteController } from "../main/latestRequest";
 import { IconButton, Pill } from "../ui";
 
-type Status = "loading" | "result" | "error" | "input";
+type Status = "recognizing" | "loading" | "result" | "error" | "input";
+type PopupOrigin = "selection" | "screen";
 type Show = {
   text: string;
   target: string;
@@ -16,8 +17,13 @@ type Show = {
   clipboardReplaced: boolean;
   requestId: number;
   canReplace: boolean;
+  /** Optional while older backends/tests are still emitting the legacy payload. */
+  origin?: PopupOrigin;
+  phase?: "recognizing" | "translating";
 };
 type PopupError = { message: string; requestId: number };
+type ScreenRecognized = { requestId: number; text: string; target: string; detected: string | null };
+type CaptureLifecycle = { requestId: number };
 type ReplaceContext = { requestId: number; sourceText: string };
 type ReplaceState = "idle" | "pending" | "done" | "failed";
 type ReplaceFocusGuard = {
@@ -73,6 +79,7 @@ export default function Popup() {
   };
 
   const [status, setStatus] = useState<Status>("input");
+  const [origin, setOrigin] = useState<PopupOrigin>("selection");
   const [expanded, setExpanded] = useState(false);
   const [inputMode, setInputMode] = useState(false);
   const [source, setSource] = useState("");
@@ -107,6 +114,8 @@ export default function Popup() {
   const [selectedEngine, setSelectedEngine] = useState<string | undefined>(undefined);
   const [enginePending, setEnginePending] = useState(false);
   const [engineError, setEngineError] = useState<string | null>(null);
+  const [screenActionPending, setScreenActionPending] = useState(false);
+  const [screenActionError, setScreenActionError] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
   const pinnedRef = useRef(false);
@@ -122,6 +131,16 @@ export default function Popup() {
   const editRequestRef = useRef(0);
   const selectedEngineRef = useRef<string | undefined>(undefined);
   const backendRequestRef = useRef<number | null>(null);
+  const statusRef = useRef<Status>(status);
+  statusRef.current = status;
+  const originRef = useRef<PopupOrigin>(origin);
+  originRef.current = origin;
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
+  const captureSuspendRef = useRef<number | null>(null);
+  const captureWasVisibleRef = useRef(false);
+  const capturePreviousStatusRef = useRef<Status>("input");
+  const screenActionRequestRef = useRef(0);
   const replaceContextRef = useRef<ReplaceContext | null>(null);
   const replaceAttemptRef = useRef(0);
   const replacePendingRef = useRef(false);
@@ -155,6 +174,9 @@ export default function Popup() {
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
+    hiddenRef.current = true;
+    screenActionRequestRef.current += 1;
+    setScreenActionPending(false);
     setHidden(true);
     win?.hide();
   }
@@ -167,6 +189,8 @@ export default function Popup() {
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
+    screenActionRequestRef.current += 1;
+    setScreenActionPending(false);
     setClosing(true);
   }
 
@@ -188,22 +212,28 @@ export default function Popup() {
   }
 
   function handleShow(payload: Show) {
+    const nextOrigin = payload.origin ?? "selection";
+    const recognizing = nextOrigin === "screen" && payload.phase === "recognizing";
+    originRef.current = nextOrigin;
     // Обычный поток сильнее тоста: таймер отменяется, пилюля пропадает сразу.
     window.clearTimeout(toastTimer.current);
     window.clearTimeout(debounce.current);
     localRequestRef.current += 1;
     editRequestRef.current += 1;
     backendRequestRef.current = payload.requestId;
+    captureSuspendRef.current = null;
+    screenActionRequestRef.current += 1;
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
-    replaceContextRef.current = payload.canReplace && payload.text
+    replaceContextRef.current = nextOrigin !== "screen" && payload.canReplace && payload.text
       ? { requestId: payload.requestId, sourceText: payload.text }
       : null;
     favoriteControllerRef.current.clear();
     setToast(null);
     setToastOut(false);
     setSession((n) => n + 1);
+    hiddenRef.current = false;
     setHidden(false);
     setClosing(false);
     wasExpandedRef.current = false;
@@ -213,21 +243,108 @@ export default function Popup() {
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setEditMode(false); setDraft(""); setEditSaveState("idle"); setEditError(null);
     setEngineMenuOpen(false); setSelectedEngine(undefined); setEnginePending(false); setEngineError(null);
+    setScreenActionPending(false); setScreenActionError(null); setOrigin(nextOrigin);
     selectedEngineRef.current = undefined;
     setSource(payload.text); setTarget(payload.target); setDetected(payload.detected); setClipNote(payload.clipboardReplaced);
-    if (payload.text) {
+    if (recognizing) {
+      statusRef.current = "recognizing";
+      setInputMode(false); setInput(""); setStatus("recognizing"); setExpanded(false);
+      setBox({ w: pillWRef.current, h: PILL_H });
+    } else if (payload.text) {
+      statusRef.current = "loading";
       setInputMode(false); setStatus("loading"); setExpanded(false);
       setBox({ w: pillWRef.current, h: PILL_H });
       window.setTimeout(() => setExpanded(true), 180);
     } else {
+      statusRef.current = "input";
       setInputMode(true); setInput(""); setStatus("input"); setExpanded(true);
       setBox({ w: CARD_W, h: inputHRef.current });
       window.setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
 
+  function handleRecognized(payload: ScreenRecognized) {
+    if (
+      hiddenRef.current
+      || originRef.current !== "screen"
+      || statusRef.current !== "recognizing"
+      || payload.requestId !== backendRequestRef.current
+    ) return;
+    setSource(payload.text);
+    setTarget(payload.target);
+    setDetected(payload.detected);
+    setInputMode(false);
+    statusRef.current = "loading";
+    setStatus("loading");
+    setExpanded(true);
+  }
+
+  function invalidateForScreenCapture() {
+    window.clearTimeout(debounce.current);
+    debounce.current = undefined;
+    backendRequestRef.current = null;
+    localRequestRef.current += 1;
+    editRequestRef.current += 1;
+    replaceAttemptRef.current += 1;
+    replacePendingRef.current = false;
+    replaceFocusGuardRef.current = null;
+    replaceContextRef.current = null;
+    favoriteControllerRef.current.clear();
+    setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
+    // Keep the visible unsaved translation draft; only invalidate its in-flight save generation.
+    setEditSaveState("idle"); setEditError(null);
+    setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
+    setScreenActionError(null);
+  }
+
+  function handleCaptureSuspend(payload: CaptureLifecycle) {
+    // This ref must change before the ACK can move focus from the webview to native overlays.
+    captureSuspendRef.current = payload.requestId;
+    captureWasVisibleRef.current = !hiddenRef.current;
+    capturePreviousStatusRef.current = statusRef.current;
+    screenActionRequestRef.current += 1;
+    setScreenActionPending(false);
+    setScreenActionError(null);
+    invalidateForScreenCapture();
+    void api.ackScreenCapture(payload.requestId).catch(() => undefined);
+  }
+
+  function handleCaptureResume(payload: CaptureLifecycle) {
+    if (captureSuspendRef.current !== payload.requestId) return;
+    captureSuspendRef.current = null;
+    const wasVisible = captureWasVisibleRef.current;
+    captureWasVisibleRef.current = false;
+    if (!wasVisible) return;
+    hiddenRef.current = false;
+    setHidden(false);
+    if (["loading", "recognizing"].includes(capturePreviousStatusRef.current)) {
+      setError({
+        title: "Выбор области отменён",
+        hint: "Предыдущий запрос остановлен. Повторите его или выберите другую область экрана.",
+      });
+      statusRef.current = "error";
+      setStatus("error");
+      setExpanded(true);
+    }
+  }
+
+  async function requestScreenCapture() {
+    if (screenActionPending) return;
+    const request = ++screenActionRequestRef.current;
+    setScreenActionPending(true);
+    setScreenActionError(null);
+    try {
+      await api.translateScreen();
+    } catch (e) {
+      if (request === screenActionRequestRef.current) setScreenActionError(errorText(e));
+    } finally {
+      if (request === screenActionRequestRef.current) setScreenActionPending(false);
+    }
+  }
+
   function handleError(message: string) {
     setError({ title: errorText(message), hint: errorHint(message) });
+    statusRef.current = "error";
     setStatus("error");
     setExpanded(true);
   }
@@ -236,16 +353,20 @@ export default function Popup() {
     api.getSettings().then((s) => { setSettings(s); applyTheme(s.theme); }).catch(() => undefined);
     const subs = [
       listen<Show>("popup:show", ({ payload }) => handleShow(payload)),
+      listen<ScreenRecognized>("popup:recognized", ({ payload }) => handleRecognized(payload)),
       listen<TranslateResult>("popup:result", ({ payload }) => {
-        if (payload.requestId === backendRequestRef.current) applyResult(payload, payload.requestId);
+        if (!hiddenRef.current && payload.requestId === backendRequestRef.current) applyResult(payload, payload.requestId);
       }),
       listen<PopupError>("popup:error", ({ payload }) => {
-        if (payload.requestId === backendRequestRef.current) handleError(payload.message);
+        if (!hiddenRef.current && payload.requestId === backendRequestRef.current) handleError(payload.message);
       }),
+      listen<CaptureLifecycle>("popup:capture-suspend", ({ payload }) => handleCaptureSuspend(payload)),
+      listen<CaptureLifecycle>("popup:capture-resume", ({ payload }) => handleCaptureResume(payload)),
       listen<Toast>("popup:toast", ({ payload }) => handleToast(payload)),
       // Настройки правятся в главном окне — попап узнаёт о смене темы и шрифта отсюда.
       listen<Settings>("settings:changed", ({ payload }) => { setSettings(payload); applyTheme(payload.theme); }),
       win?.onFocusChanged(({ payload: focused }) => {
+        if (captureSuspendRef.current !== null) return;
         const guard = replaceFocusGuardRef.current;
         if (focused) {
           if (guard?.phase === "recovery") replaceFocusGuardRef.current = null;
@@ -316,6 +437,7 @@ export default function Popup() {
     setReplaceError(null);
     setDraft(r.text); setEditMode(false); setEditSaveState("idle"); setEditError(null);
     setEnginePending(false); setEngineError(null); setEngineMenuOpen(false);
+    statusRef.current = "result";
     setResult(r); setDetected(r.detected); setTarget(r.target); setFavorite(r.isFavorite); setStatus("result"); setExpanded(true);
   }
 
@@ -333,12 +455,14 @@ export default function Popup() {
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setEditMode(false); setEditSaveState("idle"); setEditError(null);
     setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
+    statusRef.current = "loading";
     setStatus("loading"); setError(null);
     try {
       const translated = await api.translate(text, to, selectedEngineRef.current);
       if (request === localRequestRef.current) applyResult(translated, replacementRequestId);
     } catch (e) {
       if (request === localRequestRef.current) {
+        statusRef.current = "error";
         setError({ title: errorText(e), hint: errorHint(e) }); setStatus("error");
       }
     }
@@ -437,7 +561,7 @@ export default function Popup() {
   const visibleTranslation = editMode ? draft : (result?.text ?? "");
   const hasVisibleTranslation = visibleTranslation.trim().length > 0;
   const editDirty = result !== null && draft !== result.text;
-  const controlsBusy = editSaveState === "saving" || enginePending;
+  const controlsBusy = editSaveState === "saving" || enginePending || status === "recognizing";
 
   function beginEdit() {
     if (!result || enginePending || replaceState === "pending") return;
@@ -537,7 +661,8 @@ export default function Popup() {
   }
 
   function onInput(v: string) {
-    setInput(v);
+    if (originRef.current === "screen") setSource(v);
+    else setInput(v);
     setSelectedEngine(undefined);
     selectedEngineRef.current = undefined;
     window.clearTimeout(debounce.current);
@@ -552,6 +677,8 @@ export default function Popup() {
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setEditMode(false); setDraft(""); setEditSaveState("idle"); setEditError(null);
     setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
+    setScreenActionError(null);
+    statusRef.current = "input";
     setResult(null); setFavorite(false); setStatus("input");
     if (!v.trim()) return;
     debounce.current = window.setTimeout(() => translateNow(v), 600);
@@ -588,6 +715,7 @@ export default function Popup() {
 
   const canReplace = status === "result"
     && result !== null
+    && origin !== "screen"
     && replaceContextRef.current !== null
     && replaceRequestId === replaceContextRef.current.requestId
     && source === replaceContextRef.current.sourceText
@@ -689,11 +817,30 @@ export default function Popup() {
     </div>
   );
 
+  const screenSourceEditor = origin === "screen" && showOriginal && status !== "recognizing" && (
+    <div className="popup-source-correction">
+      <label htmlFor="popup-screen-source" className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">
+        Распознанный текст
+      </label>
+      <textarea
+        id="popup-screen-source"
+        aria-label="Распознанный текст"
+        value={source}
+        rows={3}
+        spellCheck={false}
+        disabled={controlsBusy || editMode}
+        className="field popup-edit-textarea"
+        onChange={(event) => onInput(event.target.value)}
+      />
+      <span className="text-[11px] text-ink-3">Исправления переводятся автоматически.</span>
+    </div>
+  );
+
   // Действия переносятся целыми группами: на узкой рабочей области ни одна кнопка не обрезается.
   const actions = (
     <div className="popup-footer">
       <div className="popup-footer-actions">
-      <Pill
+      {origin !== "screen" && <Pill
         variant="water"
         size="md"
         disabled={!canReplace}
@@ -708,7 +855,7 @@ export default function Popup() {
             : replaceState === "failed"
               ? "Выделите заново"
               : "Заменить"}
-      </Pill>
+      </Pill>}
       {status === "result" && result && (<>
       <IconButton
         icon={copied ? "check" : "copy"}
@@ -738,7 +885,7 @@ export default function Popup() {
       />
       </>)}
       </div>
-      {status === "result" && result && !inputMode && !result.wordMode && (
+      {origin !== "screen" && status === "result" && result && !inputMode && !result.wordMode && (
         <button
           className="popup-original-toggle flex items-center gap-1.5 pr-1.5 text-[12px] transition-colors"
           style={{ color: showOriginal ? "var(--water)" : "var(--ink-3)" }}
@@ -778,9 +925,9 @@ export default function Popup() {
           }}
           className="flex flex-col gap-[13px]"
         >
-          <div className="flex items-center gap-2.5">
-            <div ref={pillRef} className={`langpill ${expanded ? "on" : ""}`}>
-              <span className={`dot ${detected ? "" : "hollow"} ${status === "loading" ? "pulse" : ""}`} />
+          <div ref={pillRef} className="flex items-center gap-2.5">
+            <div className={`langpill ${expanded ? "on" : ""}`}>
+              <span className={`dot ${detected ? "" : "hollow"} ${status === "loading" || status === "recognizing" ? "pulse" : ""}`} />
               <span className="text-[12px] font-semibold tracking-[0.07em] text-ink-2">{(detected ?? "auto").toUpperCase()}</span>
               <Icon name="arrow" size={14} className="text-ink-3" />
               <button
@@ -792,6 +939,9 @@ export default function Popup() {
                 {target.toUpperCase()}
               </button>
             </div>
+            {!expanded && status === "recognizing" && (
+              <span className="pr-3 text-[12px] font-medium text-ink-2" role="status">Распознаём…</span>
+            )}
             <AnimatePresence>
               {expanded && (
                 <motion.div
@@ -892,8 +1042,34 @@ export default function Popup() {
                     <div className="flex-1" />
                     <span>{input.length} / 5000</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Pill
+                      icon="screen"
+                      disabled={screenActionPending}
+                      onClick={() => { void requestScreenCapture(); }}
+                      title={`${settings?.hotkeyScreen ?? "Ctrl+Alt+S"} — перевести область экрана`}
+                    >
+                      {screenActionPending ? "Открываем…" : "С экрана"}
+                    </Pill>
+                    {screenActionError && <span className="text-[11px] text-err" role="alert">{screenActionError}</span>}
+                  </div>
                 </div>
               )}
+
+              {origin === "screen" && status !== "recognizing" && (
+                <div className="popup-screen-origin">
+                  <span className="flex items-center gap-1.5"><Icon name="screen" size={13} /> с экрана</span>
+                  <span className="flex-1" />
+                  {(source || showOriginal) && <button type="button" aria-expanded={showOriginal} onClick={() => setShowOriginal((shown) => !shown)}>
+                    {showOriginal ? "Скрыть исходник" : "Исправить текст"}
+                  </button>}
+                  <button type="button" disabled={screenActionPending} onClick={() => { void requestScreenCapture(); }}>
+                    {screenActionPending ? "Открываем…" : "Выделить заново"}
+                  </button>
+                </div>
+              )}
+              {origin === "screen" && screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
+              {screenSourceEditor}
 
               {clipNote && <div className="px-1 text-[12px] text-warn">Буфер обмена содержал не текст и был заменён.</div>}
               {enginePending && <div className="px-1 text-[12px] text-ink-3" role="status">Переводим через выбранный движок…</div>}
@@ -914,16 +1090,24 @@ export default function Popup() {
                         <span className="text-[13px] leading-[1.5] text-ink-2">{error.hint}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Pill
+                        {currentText.trim() && <Pill
                           variant="water"
                           size="md"
                           icon="refresh"
                           onClick={() => translateNow(currentText, target, replacementRequestFor(currentText))}
                         >
                           Повторить
-                        </Pill>
+                        </Pill>}
+                        {origin !== "screen" && <Pill
+                          icon="screen"
+                          disabled={screenActionPending}
+                          onClick={() => { void requestScreenCapture(); }}
+                        >
+                          {screenActionPending ? "Открываем…" : "С экрана"}
+                        </Pill>}
                         <Pill size="md" onClick={() => api.openMain(currentText || undefined)}>Открыть окно</Pill>
                       </div>
+                      {origin !== "screen" && screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
                     </motion.div>
                   )}
 
@@ -969,7 +1153,7 @@ export default function Popup() {
                       ) : (
                         <div className="flex flex-col gap-[11px] px-1">
                           <AnimatePresence initial={false}>
-                            {showOriginal && (
+                            {showOriginal && origin !== "screen" && (
                               <motion.div
                                 key="orig"
                                 data-popup-original

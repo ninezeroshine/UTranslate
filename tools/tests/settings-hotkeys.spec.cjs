@@ -6,6 +6,7 @@ const settings = {
   hotkeyPopup: "Ctrl+Alt+T",
   hotkeyReplace: "Ctrl+Alt+R",
   hotkeyWindow: "Ctrl+Alt+U",
+  hotkeyScreen: "Ctrl+Alt+S",
   primaryLang: "ru",
   secondaryLang: "en",
   engines: ["google"],
@@ -54,11 +55,11 @@ test.beforeEach(async ({ page }) => {
           await wait(state.settingsDelay);
           state.settings = { ...args.settings };
           state.completions.push("settings_set");
-          return [
-            { field: "hotkeyPopup", error: null },
-            { field: "hotkeyReplace", error: null },
-            { field: "hotkeyWindow", error: null },
-          ];
+          const hotkeys = ["hotkeyPopup", "hotkeyScreen", "hotkeyReplace", "hotkeyWindow"];
+          return hotkeys.map((field) => {
+            const duplicate = hotkeys.find((other) => other !== field && state.settings[other] === state.settings[field]);
+            return { field, error: duplicate ? `Совпадает с ${duplicate}` : null };
+          });
         }
         if (cmd === "hotkeys_suspend") {
           const suspended = args.suspended;
@@ -206,4 +207,26 @@ test("pending unmount cleanup cannot resume over a recorder after remount", asyn
 
   await remounted.press("Escape");
   await expect.poll(() => page.evaluate(() => window.__settingsMock.suspended)).toBe(false);
+});
+
+test("screen hotkey recorder persists its own field", async ({ page }) => {
+  const screen = hotkey(page, "Перевести с экрана");
+  await screen.click();
+  await expect(screen).toHaveClass(/\brec\b/);
+  await screen.press("Control+Shift+KeyS");
+
+  await expect.poll(() => page.evaluate(() => window.__settingsMock.settings.hotkeyScreen))
+    .toBe("Ctrl+Shift+S");
+  await expect.poll(() => page.evaluate(() => window.__settingsMock.suspended)).toBe(false);
+});
+
+test("screen hotkey collision is surfaced by the shared status machinery", async ({ page }) => {
+  const screen = hotkey(page, "Перевести с экрана");
+  await screen.click();
+  await expect(screen).toHaveClass(/\brec\b/);
+  await screen.press("Control+Alt+KeyT");
+
+  await expect(page.getByText(/Совпадает с hotkeyPopup/)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__settingsMock.settings.hotkeyScreen))
+    .toBe("Ctrl+Alt+T");
 });

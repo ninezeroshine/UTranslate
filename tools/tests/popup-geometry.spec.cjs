@@ -9,6 +9,7 @@ const settings = {
   hotkeyPopup: "Ctrl+Alt+T",
   hotkeyReplace: "Ctrl+Alt+R",
   hotkeyWindow: "Ctrl+Alt+U",
+  hotkeyScreen: "Ctrl+Alt+S",
   primaryLang: "ru",
   secondaryLang: "en",
   engines: ["google", "bing", "mymemory"],

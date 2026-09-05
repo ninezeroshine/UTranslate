@@ -16,6 +16,7 @@ pub struct Settings {
     pub hotkey_popup: String,
     pub hotkey_replace: String,
     pub hotkey_window: String,
+    pub hotkey_screen: String,
     pub primary_lang: String,
     pub secondary_lang: String,
     pub engines: Vec<String>,
@@ -32,6 +33,7 @@ impl Default for Settings {
             hotkey_popup: "Ctrl+Alt+T".into(),
             hotkey_replace: "Ctrl+Alt+R".into(),
             hotkey_window: "Ctrl+Alt+W".into(),
+            hotkey_screen: "Ctrl+Alt+S".into(),
             primary_lang: "ru".into(),
             secondary_lang: "en".into(),
             engines: vec!["google".into(), "bing".into(), "mymemory".into()],
@@ -97,5 +99,24 @@ mod tests {
             assert!(is_known_engine(engine));
         }
         assert!(!is_known_engine("deepl"));
+    }
+
+    #[test]
+    fn old_settings_receive_the_default_screen_hotkey() {
+        let old = r#"{
+            "hotkeyPopup":"Ctrl+Alt+T",
+            "hotkeyReplace":"Ctrl+Alt+R",
+            "hotkeyWindow":"Ctrl+Alt+W",
+            "primaryLang":"ru",
+            "secondaryLang":"en",
+            "engines":["google"],
+            "theme":"system",
+            "uiLang":"ru",
+            "historyEnabled":true,
+            "showOriginal":false,
+            "fontSize":21
+        }"#;
+        let settings: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!(settings.hotkey_screen, "Ctrl+Alt+S");
     }
 }

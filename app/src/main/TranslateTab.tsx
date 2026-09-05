@@ -26,6 +26,8 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
   const [copied, setCopied] = useState(false);
   const [favorite, setFavorite] = useState(false);
   const [starPop, setStarPop] = useState(false);
+  const [screenPending, setScreenPending] = useState(false);
+  const [screenError, setScreenError] = useState<string | null>(null);
   const controller = useRef(new TranslationController());
   const favorites = useRef(new FavoriteController());
 
@@ -131,6 +133,19 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
     if (rollback !== null) setFavorite(rollback);
   }
 
+  async function translateScreen() {
+    if (screenPending) return;
+    setScreenPending(true);
+    setScreenError(null);
+    try {
+      await api.translateScreen();
+    } catch (e) {
+      setScreenError(errorText(e));
+    } finally {
+      setScreenPending(false);
+    }
+  }
+
   const engines = settings?.engines ?? ["google", "bing", "mymemory"];
   const targetLabel = target ?? result?.target ?? settings?.primaryLang ?? "ru";
   const detected = result?.detected ?? null;
@@ -167,6 +182,15 @@ export function TranslateTab({ prefill, settings }: { prefill: { text: string; n
             <span className="pl-1.5 text-xs text-ink-3">{source.length} / 5000</span>
             <span className="text-[11px] text-ink-3">{settings?.hotkeyPopup ?? "Ctrl+Alt+T"} — перевести выделенное</span>
             <div className="flex-1" />
+            {screenError && <span className="max-w-42 truncate text-[11px] text-err" role="alert">{screenError}</span>}
+            <Pill
+              icon="screen"
+              disabled={screenPending}
+              onClick={() => { void translateScreen(); }}
+              title={`${settings?.hotkeyScreen ?? "Ctrl+Alt+S"} — перевести область экрана`}
+            >
+              {screenPending ? "Открываем…" : "С экрана"}
+            </Pill>
             <IconButton icon="speaker" label="Озвучить исходник" disabled={!source} onClick={() => speak(source, detected ?? "en")} />
           </div>
         </Card>

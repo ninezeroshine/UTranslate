@@ -3,7 +3,9 @@
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewWindow,
+};
 
 /// Прозрачное поле вокруг карточки — место для тени (см. docs/motion.md).
 pub const MARGIN: f64 = 64.0;
@@ -23,6 +25,13 @@ pub struct Toast {
 }
 
 pub fn show_at_cursor(app: &AppHandle) -> tauri::Result<()> {
+    let cur = app.cursor_position()?;
+    show_at_point(app, cur.x, cur.y)
+}
+
+/// Показывает карточку у физической точки экрана, например у нижнего правого угла
+/// захваченной области. Координаты не переводятся через DPI другого монитора.
+pub fn show_at_point(app: &AppHandle, x: f64, y: f64) -> tauri::Result<()> {
     let win = app
         .get_webview_window("popup")
         .ok_or(tauri::Error::WindowNotFound)?;
@@ -30,9 +39,14 @@ pub fn show_at_cursor(app: &AppHandle) -> tauri::Result<()> {
     win.set_ignore_cursor_events(false)?;
     set_no_activate(&win, false)?;
     // Фронтенд после морфинга ужимает окно под содержимое, перед новым показом возвращаем запас.
-    let (width, height) = size_within_cursor_work_area(app, CARD_W, CARD_H)?;
-    win.set_size(LogicalSize::new(width, height))?;
-    place_at_cursor(app, &win)?;
+    let (width, height) = size_within_point_work_area(app, x, y, CARD_W, CARD_H)?;
+    let scale = app
+        .monitor_from_point(x, y)?
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0);
+    let (width, height) = logical_to_physical_size(width, height, scale);
+    win.set_size(PhysicalSize::new(width, height))?;
+    place_at_point(app, &win, x, y)?;
     win.show()?;
     win.set_focus()?;
     watch_cursor(app.clone(), win);
@@ -86,11 +100,31 @@ pub fn show_after_replace_error(app: &AppHandle) {
     watch_cursor(app.clone(), win);
 }
 
+/// Возвращает карточку после отмены выбора области. При небезопасном foreground
+/// показывает её без активации, но всегда возобновляет обработку прозрачных полей.
+pub fn restore_after_capture(app: &AppHandle, activate: bool) -> tauri::Result<()> {
+    let win = app
+        .get_webview_window("popup")
+        .ok_or(tauri::Error::WindowNotFound)?;
+    win.set_ignore_cursor_events(false)?;
+    set_no_activate(&win, !activate)?;
+    win.show()?;
+    if activate {
+        win.set_focus()?;
+    }
+    watch_cursor(app.clone(), win);
+    Ok(())
+}
+
 /// Ставит окно так, чтобы карточка (окно минус поля) оказалась в `курсор + (12, 16)`,
 /// с прижатием к краям рабочей области по прямоугольнику карточки, а не окна.
 fn place_at_cursor(app: &AppHandle, win: &WebviewWindow) -> tauri::Result<()> {
     let cur = app.cursor_position()?;
-    let monitor = app.monitor_from_point(cur.x, cur.y)?;
+    place_at_point(app, win, cur.x, cur.y)
+}
+
+fn place_at_point(app: &AppHandle, win: &WebviewWindow, x: f64, y: f64) -> tauri::Result<()> {
+    let monitor = app.monitor_from_point(x, y)?;
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
     let margin_px = monitor.as_ref().map(popup_margin).unwrap_or(MARGIN) * scale;
     let size = win.outer_size()?;
@@ -98,7 +132,7 @@ fn place_at_cursor(app: &AppHandle, win: &WebviewWindow) -> tauri::Result<()> {
         (size.width as f64 - margin_px * 2.0).max(0.0),
         (size.height as f64 - margin_px * 2.0).max(0.0),
     );
-    let (mut card_x, mut card_y) = (cur.x + 12.0, cur.y + 16.0);
+    let (mut card_x, mut card_y) = (x + 12.0, y + 16.0);
     if let Some(m) = monitor {
         let wa = m.work_area();
         let (right, bottom) = (
@@ -109,7 +143,7 @@ fn place_at_cursor(app: &AppHandle, win: &WebviewWindow) -> tauri::Result<()> {
             card_x = (right - card_w).max(wa.position.x as f64);
         }
         if card_y + card_h > bottom {
-            card_y = (cur.y - 16.0 - card_h).max(wa.position.y as f64);
+            card_y = (y - 16.0 - card_h).max(wa.position.y as f64);
         }
         let outer_w = size.width as f64;
         let outer_h = size.height as f64;
@@ -132,7 +166,17 @@ fn size_within_cursor_work_area(
     card_height: f64,
 ) -> tauri::Result<(f64, f64)> {
     let cur = app.cursor_position()?;
-    let Some(monitor) = app.monitor_from_point(cur.x, cur.y)? else {
+    size_within_point_work_area(app, cur.x, cur.y, card_width, card_height)
+}
+
+fn size_within_point_work_area(
+    app: &AppHandle,
+    x: f64,
+    y: f64,
+    card_width: f64,
+    card_height: f64,
+) -> tauri::Result<(f64, f64)> {
+    let Some(monitor) = app.monitor_from_point(x, y)? else {
         return Ok((card_width + MARGIN * 2.0, card_height + MARGIN * 2.0));
     };
     let scale = monitor.scale_factor();
@@ -175,6 +219,18 @@ fn fit_logical_size(
     (
         width.min(work_width_px / safe_scale),
         height.min(work_height_px / safe_scale),
+    )
+}
+
+fn logical_to_physical_size(width: f64, height: f64, scale: f64) -> (u32, u32) {
+    let safe_scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    (
+        (width * safe_scale).round().max(1.0) as u32,
+        (height * safe_scale).round().max(1.0) as u32,
     )
 }
 
@@ -252,7 +308,7 @@ fn watch_cursor(app: AppHandle, win: WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_axis, fit_logical_size, margin_for_work_area};
+    use super::{clamp_axis, fit_logical_size, logical_to_physical_size, margin_for_work_area};
 
     #[test]
     fn logical_size_is_limited_by_physical_work_area_at_monitor_dpi() {
@@ -272,5 +328,11 @@ mod tests {
     fn compact_work_areas_spend_less_height_on_shadow_space() {
         assert_eq!(margin_for_work_area(280.0), 16.0);
         assert_eq!(margin_for_work_area(700.0), 64.0);
+    }
+
+    #[test]
+    fn explicit_point_size_uses_target_monitor_scale() {
+        assert_eq!(logical_to_physical_size(558.0, 388.0, 1.5), (837, 582));
+        assert_eq!(logical_to_physical_size(558.0, 388.0, 0.0), (558, 388));
     }
 }

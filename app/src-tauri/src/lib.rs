@@ -1,7 +1,10 @@
 mod capture;
 mod db;
 mod engines;
+mod ocr;
 mod popup;
+mod screen_capture;
+mod screen_translation;
 mod settings;
 
 use std::{
@@ -43,6 +46,8 @@ pub struct AppState {
     update: Mutex<Option<Update>>,
     /// Пункт трея «Обновить до X.Y.Z»: создаётся выключенным, включается по находке.
     update_item: Mutex<Option<MenuItem<tauri::Wry>>>,
+    /// Одноразовое подтверждение popup перед скрытием для захвата экрана.
+    screen_capture_ack: screen_translation::ScreenCaptureAck,
 }
 
 /// Статус регистрации одного хоткея — отдаётся фронтенду после каждого сохранения настроек.
@@ -58,6 +63,7 @@ enum Action {
     Popup,
     Replace,
     Window,
+    Screen,
 }
 
 #[derive(Clone, Serialize)]
@@ -69,6 +75,8 @@ struct PopupShow {
     detected: Option<String>,
     clipboard_replaced: bool,
     can_replace: bool,
+    origin: &'static str,
+    phase: &'static str,
 }
 
 #[derive(Clone, Serialize)]
@@ -160,7 +168,7 @@ mod hotkey_tests {
     }
 }
 
-/// Проверяет и регистрирует все три хоткея; каждый получает свой статус, независимо от остальных.
+/// Проверяет и регистрирует все хоткеи; каждый получает свой статус, независимо от остальных.
 /// Порядок: проверка (парсинг + совпадения между полями), unregister_all, затем регистрация валидных.
 fn register_hotkeys(app: &AppHandle, s: &Settings, active: bool) -> Vec<HotkeyStatus> {
     let gs = app.global_shortcut();
@@ -168,6 +176,7 @@ fn register_hotkeys(app: &AppHandle, s: &Settings, active: bool) -> Vec<HotkeySt
         ("hotkeyPopup", "Перевести в попап", &s.hotkey_popup),
         ("hotkeyReplace", "Заменить выделенное", &s.hotkey_replace),
         ("hotkeyWindow", "Открыть окно", &s.hotkey_window),
+        ("hotkeyScreen", "Перевести с экрана", &s.hotkey_screen),
     ];
 
     let mut checked: Vec<Result<Shortcut, String>> =
@@ -308,29 +317,44 @@ fn on_shortcut(app: &AppHandle, sc: &Shortcut, ev: ShortcutEvent) {
         (&s.hotkey_popup, Action::Popup),
         (&s.hotkey_replace, Action::Replace),
         (&s.hotkey_window, Action::Window),
+        (&s.hotkey_screen, Action::Screen),
     ]
     .into_iter()
     .find(|(hk, _)| parse_hotkey(hk).map(|p| &p == sc).unwrap_or(false))
     .map(|(_, a)| a);
     if let Some(action) = action {
-        // Автоповтор зажатого хоткея не должен запускать второй захват.
-        if BUSY.swap(true, Ordering::SeqCst) {
-            return;
+        if let Err(error) = dispatch_action(app, action, s) {
+            eprintln!("действие хоткея: {error}");
         }
-        // Любое новое действие инвалидирует незавершённый результат старого попапа.
-        let request_id = next_popup_request();
-        app.state::<AppState>()
-            .popup_capture
-            .lock()
-            .unwrap()
-            .clear();
-        let app = app.clone();
-        // Захват ждёт приложение и clipboard — не на потоке событий.
-        std::thread::spawn(move || {
-            run_action(app, action, s, request_id);
-            BUSY.store(false, Ordering::SeqCst);
-        });
     }
+}
+
+fn dispatch_action(app: &AppHandle, action: Action, settings: Settings) -> Result<(), String> {
+    // Автоповтор и параллельные native-capture операции не должны создавать второй selector.
+    if BUSY
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("Другая операция захвата уже выполняется".into());
+    }
+    let request_id = next_popup_request();
+    let state = app.state::<AppState>();
+    let Ok(mut popup_capture) = state.popup_capture.lock() else {
+        BUSY.store(false, Ordering::SeqCst);
+        return Err("Состояние окна перевода недоступно".into());
+    };
+    popup_capture.clear();
+    drop(popup_capture);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if action == Action::Screen {
+            screen_translation::run(app, settings, request_id);
+        } else {
+            let _busy_reset = BusyReset;
+            run_action(app, action, settings, request_id);
+        }
+    });
+    Ok(())
 }
 
 fn show_popup_error(app: &AppHandle, s: &Settings, request_id: u64, text: String, message: String) {
@@ -344,6 +368,8 @@ fn show_popup_error(app: &AppHandle, s: &Settings, request_id: u64, text: String
             detected: None,
             clipboard_replaced: false,
             can_replace: false,
+            origin: "selection",
+            phase: "translating",
         },
     );
     std::thread::sleep(std::time::Duration::from_millis(30));
@@ -394,6 +420,8 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                         detected: None,
                         clipboard_replaced: false,
                         can_replace: false,
+                        origin: "selection",
+                        phase: "translating",
                     },
                 );
                 std::thread::sleep(std::time::Duration::from_millis(30));
@@ -419,6 +447,8 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                     detected: hint.map(String::from),
                     clipboard_replaced: cap.clipboard_replaced,
                     can_replace: true,
+                    origin: "selection",
+                    phase: "translating",
                 },
             );
             std::thread::sleep(std::time::Duration::from_millis(30));
@@ -458,6 +488,8 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                         detected: None,
                         clipboard_replaced: false,
                         can_replace: false,
+                        origin: "selection",
+                        phase: "translating",
                     },
                 );
                 return;
@@ -496,6 +528,8 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                             detected: None,
                             clipboard_replaced: cap.clipboard_replaced,
                             can_replace: false,
+                            origin: "selection",
+                            phase: "translating",
                         },
                     );
                     std::thread::sleep(std::time::Duration::from_millis(30));
@@ -511,6 +545,7 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                 }
             }
         }
+        Action::Screen => unreachable!("screen action has its own capture flow"),
     }
 }
 
@@ -538,8 +573,8 @@ fn paste_toast_text(s: &str, outcome: capture::PasteOutcome) -> String {
 #[cfg(test)]
 mod toast_tests {
     use super::{
-        paste_toast_text, popup_command_origin_is_valid, request_matches, toast_text,
-        PopupCaptureStore,
+        paste_toast_text, popup_command_origin_is_valid, request_matches,
+        screen_command_origin_is_valid, toast_text, PopupCaptureStore,
     };
 
     #[test]
@@ -606,6 +641,14 @@ mod toast_tests {
         assert!(captured
             .take_for_replace(3, 3, "source", "translation".into())
             .is_ok());
+    }
+
+    #[test]
+    fn screen_capture_commands_accept_only_owned_ui_windows() {
+        assert!(screen_command_origin_is_valid("main"));
+        assert!(screen_command_origin_is_valid("popup"));
+        assert!(!screen_command_origin_is_valid("selector"));
+        assert!(!screen_command_origin_is_valid("unknown"));
     }
 }
 
@@ -846,6 +889,31 @@ fn open_main(app: AppHandle, text: Option<String>) {
     }
 }
 
+fn screen_command_origin_is_valid(label: &str) -> bool {
+    matches!(label, "main" | "popup")
+}
+
+#[tauri::command]
+fn translate_screen(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    if !screen_command_origin_is_valid(window.label()) {
+        return Err("Захват экрана можно запустить только из окна UTranslate".into());
+    }
+    let settings = app.state::<AppState>().settings.lock().unwrap().clone();
+    dispatch_action(&app, Action::Screen, settings)
+}
+
+#[tauri::command]
+fn ack_screen_capture(
+    window: WebviewWindow,
+    state: State<AppState>,
+    request_id: u64,
+) -> Result<(), String> {
+    if window.label() != "popup" || !popup_request_is_current(request_id) {
+        return Err("Подтверждение захвата устарело".into());
+    }
+    state.screen_capture_ack.acknowledge(request_id)
+}
+
 #[tauri::command]
 fn history_list(
     state: State<AppState>,
@@ -1051,6 +1119,7 @@ async fn update_install(app: AppHandle) -> Result<(), String> {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItemBuilder::with_id("open", "Открыть UTranslate").build(app)?;
+    let screen = MenuItemBuilder::with_id("screen", "Перевести с экрана").build(app)?;
     let enabled = CheckMenuItemBuilder::with_id("enabled", "Хоткеи включены")
         .checked(true)
         .build(app)?;
@@ -1062,6 +1131,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .items(&[
             &open,
+            &screen,
             &enabled,
             &PredefinedMenuItem::separator(app)?,
             &update,
@@ -1081,6 +1151,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "open" => show_main(app),
+            "screen" => {
+                let settings = app.state::<AppState>().settings.lock().unwrap().clone();
+                if let Err(error) = dispatch_action(app, Action::Screen, settings) {
+                    eprintln!("захват экрана: {error}");
+                }
+            }
             "enabled" => {
                 let on = enabled_item.is_checked().unwrap_or(true);
                 let state = app.state::<AppState>();
@@ -1135,6 +1211,8 @@ pub fn run() {
             copy_text,
             update_translation_text,
             replace_popup_translation,
+            translate_screen,
+            ack_screen_capture,
             open_main,
             history_list,
             history_set_favorite,
@@ -1174,6 +1252,7 @@ pub fn run() {
                 popup_capture: Mutex::new(PopupCaptureStore::default()),
                 update: Mutex::new(None),
                 update_item: Mutex::new(None),
+                screen_capture_ack: screen_translation::ScreenCaptureAck::default(),
             });
             build_tray(app.handle())?;
             // Путь в записи автозапуска протухает при переименовании или переносе exe
