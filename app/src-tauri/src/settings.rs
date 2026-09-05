@@ -56,13 +56,32 @@ impl Settings {
         }
         Ok(())
     }
+
+    /// Чинит только испорченные поля. Выбрасывать файл целиком нельзя: в 0.2.0 старый экран
+    /// настроек умел поставить `secondaryLang == primaryLang`, и вместе с языком пользователь
+    /// терял хоткеи, тему и кегль.
+    fn sanitized(mut self) -> Self {
+        let defaults = Settings::default();
+        if self.secondary_lang == self.primary_lang {
+            self.secondary_lang = if self.primary_lang == defaults.primary_lang {
+                defaults.secondary_lang.clone()
+            } else {
+                defaults.primary_lang.clone()
+            };
+        }
+        self.engines.retain(|engine| is_known_engine(engine));
+        if self.engines.is_empty() {
+            self.engines = defaults.engines;
+        }
+        self
+    }
 }
 
 pub fn load(path: &Path) -> Settings {
     std::fs::read_to_string(path)
         .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .filter(|s: &Settings| s.validate().is_ok())
+        .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
+        .map(Settings::sanitized)
         .unwrap_or_default()
 }
 
@@ -118,5 +137,38 @@ mod tests {
         }"#;
         let settings: Settings = serde_json::from_str(old).unwrap();
         assert_eq!(settings.hotkey_screen, "Ctrl+Alt+S");
+    }
+
+    #[test]
+    fn broken_settings_are_repaired_field_by_field() {
+        let old = r#"{
+            "hotkeyPopup":"Ctrl+Shift+9",
+            "hotkeyReplace":"Ctrl+Alt+R",
+            "primaryLang":"ru",
+            "secondaryLang":"ru",
+            "engines":["deepl","google"],
+            "theme":"dark",
+            "fontSize":17
+        }"#;
+        let repaired = serde_json::from_str::<Settings>(old).unwrap().sanitized();
+
+        // Испорчено было одно поле — остальное пользователю сохраняем.
+        assert_eq!(repaired.hotkey_popup, "Ctrl+Shift+9");
+        assert_eq!(repaired.theme, "dark");
+        assert_eq!(repaired.font_size, 17);
+        assert_eq!(repaired.engines, vec!["google".to_string()]);
+        assert_eq!(repaired.secondary_lang, "en");
+        assert!(repaired.validate().is_ok());
+
+        let no_engines = Settings {
+            engines: vec!["deepl".into()],
+            primary_lang: "en".into(),
+            secondary_lang: "en".into(),
+            ..Settings::default()
+        }
+        .sanitized();
+        assert_eq!(no_engines.engines, Settings::default().engines);
+        assert_eq!(no_engines.secondary_lang, "ru");
+        assert!(no_engines.validate().is_ok());
     }
 }

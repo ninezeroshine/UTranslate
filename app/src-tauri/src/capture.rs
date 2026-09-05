@@ -98,16 +98,42 @@ fn format_kind(format: u32) -> FormatKind {
     }
 }
 
+/// Один тип на оба состояния формата: `Bytes` — снятая копия HGLOBAL, остальные варианты —
+/// готовые к `SetClipboardData` хендлы. Drop освобождает всё, что не успели передать системе.
 enum FormatData {
-    Global(Vec<u8>),
+    Bytes(Vec<u8>),
+    Global(Option<HGLOBAL>),
     Bitmap(Option<HANDLE>),
     EnhMetaFile(Option<HENHMETAFILE>),
+}
+
+impl FormatData {
+    fn handle(&self) -> HANDLE {
+        match self {
+            Self::Global(Some(h)) => HANDLE(h.0),
+            Self::Bitmap(Some(h)) => *h,
+            Self::EnhMetaFile(Some(h)) => HANDLE(h.0),
+            _ => HANDLE::default(),
+        }
+    }
+
+    fn transferred(&mut self) {
+        match self {
+            Self::Bytes(_) => {}
+            Self::Global(h) => *h = None,
+            Self::Bitmap(h) => *h = None,
+            Self::EnhMetaFile(h) => *h = None,
+        }
+    }
 }
 
 impl Drop for FormatData {
     fn drop(&mut self) {
         unsafe {
             match self {
+                Self::Global(Some(h)) => {
+                    let _ = GlobalFree(Some(*h));
+                }
                 Self::Bitmap(Some(h)) => {
                     let _ = DeleteObject(HGDIOBJ(h.0));
                 }
@@ -128,55 +154,6 @@ struct ClipboardFormat {
 struct ClipboardSnapshot {
     formats: Vec<ClipboardFormat>,
     sequence: u32,
-}
-
-enum PreparedData {
-    Global(Option<HGLOBAL>),
-    Bitmap(Option<HANDLE>),
-    EnhMetaFile(Option<HENHMETAFILE>),
-}
-
-struct PreparedFormat {
-    id: u32,
-    data: PreparedData,
-}
-
-impl PreparedData {
-    fn handle(&self) -> HANDLE {
-        match self {
-            Self::Global(Some(h)) => HANDLE(h.0),
-            Self::Bitmap(Some(h)) => *h,
-            Self::EnhMetaFile(Some(h)) => HANDLE(h.0),
-            _ => HANDLE::default(),
-        }
-    }
-
-    fn transferred(&mut self) {
-        match self {
-            Self::Global(h) => *h = None,
-            Self::Bitmap(h) => *h = None,
-            Self::EnhMetaFile(h) => *h = None,
-        }
-    }
-}
-
-impl Drop for PreparedData {
-    fn drop(&mut self) {
-        unsafe {
-            match self {
-                Self::Global(Some(h)) => {
-                    let _ = GlobalFree(Some(*h));
-                }
-                Self::Bitmap(Some(h)) => {
-                    let _ = DeleteObject(HGDIOBJ(h.0));
-                }
-                Self::EnhMetaFile(Some(h)) => {
-                    let _ = DeleteEnhMetaFile(Some(*h));
-                }
-                _ => {}
-            }
-        }
-    }
 }
 
 struct ClipboardGuard;
@@ -219,7 +196,7 @@ fn write_text_owned(text: &str, expected_sequence: u32, owner: HWND) -> Result<u
     let bytes_len = utf16.len() * std::mem::size_of::<u16>();
     let global = unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes_len) }
         .map_err(|_| "Не хватает памяти для записи в буфер обмена".to_string())?;
-    let mut prepared = PreparedData::Global(Some(global));
+    let mut prepared = FormatData::Global(Some(global));
     let ptr = unsafe { GlobalLock(global) };
     if ptr.is_null() {
         return Err("Не удалось подготовить текст для буфера обмена".into());
@@ -276,7 +253,7 @@ impl ClipboardSnapshot {
                     unsafe {
                         let _ = GlobalUnlock(global);
                     }
-                    FormatData::Global(bytes)
+                    FormatData::Bytes(bytes)
                 }
                 FormatKind::Bitmap => {
                     let copy =
@@ -313,11 +290,11 @@ impl ClipboardSnapshot {
         Ok(Self { formats, sequence })
     }
 
-    fn prepare(mut self) -> Result<Vec<PreparedFormat>, String> {
+    fn prepare(mut self) -> Result<Vec<ClipboardFormat>, String> {
         let mut prepared = Vec::with_capacity(self.formats.len());
         for mut item in self.formats.drain(..) {
             let data = match &mut item.data {
-                FormatData::Global(bytes) => {
+                FormatData::Bytes(bytes) => {
                     let bytes = std::mem::take(bytes);
                     let global =
                         unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len()) }.map_err(|_| {
@@ -338,21 +315,46 @@ impl ClipboardSnapshot {
                         );
                         let _ = GlobalUnlock(global);
                     }
-                    PreparedData::Global(Some(global))
+                    FormatData::Global(Some(global))
                 }
-                FormatData::Bitmap(handle) => PreparedData::Bitmap(handle.take()),
-                FormatData::EnhMetaFile(handle) => PreparedData::EnhMetaFile(handle.take()),
+                FormatData::Global(handle) => FormatData::Global(handle.take()),
+                FormatData::Bitmap(handle) => FormatData::Bitmap(handle.take()),
+                FormatData::EnhMetaFile(handle) => FormatData::EnhMetaFile(handle.take()),
             };
-            prepared.push(PreparedFormat { id: item.id, data });
+            prepared.push(ClipboardFormat { id: item.id, data });
         }
         Ok(prepared)
     }
 
-    fn restore(self, expected_sequence: u32, owner: HWND) -> Result<(), String> {
+    /// Единственный путь восстановления. `expected_text` задаётся только после отправленного
+    /// Ctrl+V: системный синтез форматов может увеличить sequence, не меняя owner и текст, и
+    /// такое своё состояние перезаписать можно. Чужую запись не трогаем в обоих случаях.
+    fn restore(
+        self,
+        expected_sequence: u32,
+        owner: HWND,
+        expected_text: Option<&str>,
+    ) -> Result<(), String> {
         let mut prepared = self.prepare()?;
         let _guard = open_clipboard(Some(owner))?;
-        if unsafe { GetClipboardSequenceNumber() } != expected_sequence {
-            return Err("Буфер обмена изменился; новое содержимое сохранено".into());
+        let current_sequence = unsafe { GetClipboardSequenceNumber() };
+        if current_sequence != expected_sequence {
+            let (owner_matches, text_matches) = match expected_text {
+                Some(text) => (
+                    unsafe { GetClipboardOwner() }.ok() == Some(owner),
+                    read_unicode_text_from_open_clipboard().as_deref() == Some(text),
+                ),
+                None => (false, false),
+            };
+            if clipboard_restore_decision(
+                expected_sequence,
+                current_sequence,
+                owner_matches,
+                text_matches,
+            ) == ClipboardRestoreDecision::PreserveExternal
+            {
+                return Err("Буфер обмена изменился; новое содержимое сохранено".into());
+            }
         }
         unsafe { EmptyClipboard() }
             .map_err(|e| format!("Не удалось очистить буфер для восстановления: {e}"))?;
@@ -368,52 +370,18 @@ impl ClipboardSnapshot {
         Ok(())
     }
 
-    /// После отправленного Ctrl+V ошибка восстановления clipboard уже не означает,
-    /// что вставка не была отправлена. Системный синтез форматов может увеличить sequence,
-    /// не меняя owner или текст; такое наше состояние разрешено восстановить. При внешней
-    /// записи новый clipboard сохраняется и вызывающая сторона получает предупреждение.
+    /// После отправленного Ctrl+V ошибка восстановления уже не означает, что вставка
+    /// не ушла: вызывающей стороне важен только факт, вернулся буфер или нет.
     fn restore_after_paste(
         self,
         expected_sequence: u32,
         owner: HWND,
         expected_text: &str,
     ) -> PasteOutcome {
-        let mut prepared = match self.prepare() {
-            Ok(prepared) => prepared,
-            Err(_) => return PasteOutcome::ClipboardPreserved,
-        };
-        let _guard = match open_clipboard(Some(owner)) {
-            Ok(guard) => guard,
-            Err(_) => return PasteOutcome::ClipboardPreserved,
-        };
-
-        let current_sequence = unsafe { GetClipboardSequenceNumber() };
-        if current_sequence != expected_sequence {
-            let current_owner = unsafe { GetClipboardOwner() }.ok();
-            let current_text = read_unicode_text_from_open_clipboard();
-            let owner_matches = current_owner == Some(owner);
-            let text_matches = current_text.as_deref() == Some(expected_text);
-            if clipboard_restore_decision(
-                expected_sequence,
-                current_sequence,
-                owner_matches,
-                text_matches,
-            ) == ClipboardRestoreDecision::PreserveExternal
-            {
-                return PasteOutcome::ClipboardPreserved;
-            }
+        match self.restore(expected_sequence, owner, Some(expected_text)) {
+            Ok(()) => PasteOutcome::ClipboardRestored,
+            Err(_) => PasteOutcome::ClipboardPreserved,
         }
-
-        if unsafe { EmptyClipboard() }.is_err() {
-            return PasteOutcome::ClipboardPreserved;
-        }
-        for item in &mut prepared {
-            if unsafe { SetClipboardData(item.id, Some(item.data.handle())) }.is_err() {
-                return PasteOutcome::ClipboardPreserved;
-            }
-            item.data.transferred();
-        }
-        PasteOutcome::ClipboardRestored
     }
 }
 
@@ -636,15 +604,16 @@ fn restore_target_from_popup(
     }
 }
 
+/// Между захватом и заменой лежит сетевой перевод, поэтому эпоха ввода здесь не сверяется:
+/// `GetLastInputInfo` растёт от любого движения мыши, а движение мышью замену не отменяет.
+/// Защиту держат окно, фокусный контрол и точное совпадение выделенного текста.
 fn replacement_unchanged(
     original: &InputContext,
     current: &InputContext,
     original_text: &str,
     current_text: &str,
 ) -> bool {
-    same_target(original, current)
-        && original.last_input == current.last_input
-        && original_text == current_text
+    same_target(original, current) && original_text == current_text
 }
 
 fn marker() -> String {
@@ -743,47 +712,66 @@ fn read_clipboard_text_observation(
     })
 }
 
-fn finish_capture_after_copy<Observe, ReadText, Restore, Wait>(
+/// Всё, что после отправленного Ctrl+C делается с системой: опрос буфера и окна, чтение
+/// текста, возврат снимка и пауза. Отдельный объект нужен, чтобы опрос проверялся тестами
+/// по скрипту, а не только вживую.
+trait CopyProbe {
+    fn observe(&mut self) -> Result<CopyObservation, String>;
+    fn read_text(&mut self) -> Result<ClipboardTextObservation, String>;
+    fn restore(&mut self, sequence: u32) -> Result<(), String>;
+    fn wait(&mut self) -> bool;
+}
+
+enum Copied {
+    /// Текст прочитан (или выделение оказалось пустым).
+    Text(Option<String>),
+    /// Копия не появилась за отведённое время.
+    Timeout,
+}
+
+/// Возвращает буфер и склеивает ошибки: пользователю нужна исходная причина, а не только
+/// отказ восстановления. `restore` сам откажется писать поверх чужого содержимого по sequence.
+fn restore_clipboard(
+    probe: &mut impl CopyProbe,
+    sequence: u32,
+    error: Option<String>,
+) -> Result<(), String> {
+    match (probe.restore(sequence), error) {
+        (Ok(()), None) => Ok(()),
+        (Ok(()), Some(error)) => Err(error),
+        (Err(restore_error), None) => Err(restore_error),
+        (Err(restore_error), Some(error)) => Err(format!("{error}. {restore_error}")),
+    }
+}
+
+/// Опрос сам ничего не восстанавливает: sequence, под которым снимок ещё можно вернуть,
+/// копится в `restore_sequence`, а возврат делает единственный выход в вызывающей функции.
+fn poll_copied_text(
+    probe: &mut impl CopyProbe,
     target: &InputContext,
     mark: &str,
     marker_sequence: u32,
-    mut observe: Observe,
-    mut read_text: ReadText,
-    mut restore: Restore,
-    mut wait: Wait,
-) -> Result<Captured, String>
-where
-    Observe: FnMut() -> Result<CopyObservation, String>,
-    ReadText: FnMut() -> Result<ClipboardTextObservation, String>,
-    Restore: FnMut(u32) -> Result<(), String>,
-    Wait: FnMut() -> bool,
-{
-    let mut restorable_marker_sequence = marker_sequence;
+    restore_sequence: &mut u32,
+) -> Result<Copied, String> {
     loop {
-        let observation = observe()?;
+        let observation = probe.observe()?;
         if observation.sequence != marker_sequence {
-            let copied = read_text()?;
+            let copied = probe.read_text()?;
             match copied.owner {
                 CopyOwnerRelation::Marker => {
                     if copied.text.as_deref() != Some(mark) {
                         return Err("Контекст копирования изменился; операция отменена".into());
                     }
-                    let after_read = observe()?;
+                    let after_read = probe.observe()?;
                     if after_read.sequence != copied.sequence {
                         continue;
                     }
-                    restorable_marker_sequence = copied.sequence;
+                    *restore_sequence = copied.sequence;
                     if !same_target(target, &after_read.context) {
-                        restore(restorable_marker_sequence)?;
                         return Err("Активное поле изменилось во время копирования".into());
                     }
-                    if !wait() {
-                        restore(restorable_marker_sequence)?;
-                        return Ok(Captured {
-                            text: None,
-                            context: target.clone(),
-                            clipboard_replaced: false,
-                        });
+                    if !probe.wait() {
+                        return Ok(Copied::Timeout);
                     }
                     continue;
                 }
@@ -793,40 +781,100 @@ where
                 CopyOwnerRelation::Target => {}
             }
 
-            let after_read = observe()?;
+            let after_read = probe.observe()?;
             if after_read.sequence != copied.sequence {
                 continue;
             }
+            *restore_sequence = after_read.sequence;
             if !same_target(target, &after_read.context) {
-                restore(after_read.sequence)?;
                 return Err("Активное поле изменилось во время копирования".into());
             }
-            let text = copied
-                .text
-                .filter(|text| text != mark && !text.trim().is_empty());
-            restore(after_read.sequence)?;
-            let context = observe()?.context;
-            if !same_target(target, &context) {
-                return Err("Активное поле изменилось после копирования".into());
-            }
-            return Ok(Captured {
-                text,
-                context,
-                clipboard_replaced: false,
-            });
+            return Ok(Copied::Text(
+                copied
+                    .text
+                    .filter(|text| text != mark && !text.trim().is_empty()),
+            ));
         }
 
         if !same_target(target, &observation.context) {
-            restore(restorable_marker_sequence)?;
             return Err("Активное поле изменилось во время копирования".into());
         }
-        if !wait() {
-            restore(restorable_marker_sequence)?;
-            return Ok(Captured {
-                text: None,
-                context: target.clone(),
+        if !probe.wait() {
+            return Ok(Copied::Timeout);
+        }
+    }
+}
+
+/// Буфер пользователя возвращается на любом исходе, кроме отданного дальше текста: иначе
+/// маркер остаётся в буфере после первой же ошибки опроса или чтения.
+fn finish_capture_after_copy(
+    probe: &mut impl CopyProbe,
+    target: &InputContext,
+    mark: &str,
+    marker_sequence: u32,
+) -> Result<Captured, String> {
+    let mut restore_sequence = marker_sequence;
+    let copied =
+        match poll_copied_text(probe, target, mark, marker_sequence, &mut restore_sequence) {
+            Ok(copied) => copied,
+            Err(error) => {
+                return Err(restore_clipboard(probe, restore_sequence, Some(error))
+                    .expect_err("возврат буфера после ошибки всегда возвращает ошибку"))
+            }
+        };
+    restore_clipboard(probe, restore_sequence, None)?;
+    match copied {
+        Copied::Timeout => Ok(Captured {
+            text: None,
+            context: target.clone(),
+            clipboard_replaced: false,
+        }),
+        Copied::Text(text) => {
+            let context = probe.observe()?.context;
+            if !same_target(target, &context) {
+                return Err("Активное поле изменилось после копирования".into());
+            }
+            Ok(Captured {
+                text,
+                context,
                 clipboard_replaced: false,
-            });
+            })
+        }
+    }
+}
+
+struct Win32CopyProbe {
+    owner: HWND,
+    target_pid: u32,
+    start: Instant,
+    /// Снимок отдаётся ровно один раз: `restore` потребляет его целиком.
+    snapshot: Option<ClipboardSnapshot>,
+}
+
+impl CopyProbe for Win32CopyProbe {
+    fn observe(&mut self) -> Result<CopyObservation, String> {
+        let sequence = unsafe { GetClipboardSequenceNumber() };
+        let context = current_context()?;
+        Ok(CopyObservation { sequence, context })
+    }
+
+    fn read_text(&mut self) -> Result<ClipboardTextObservation, String> {
+        read_clipboard_text_observation(self.owner, self.target_pid)
+    }
+
+    fn restore(&mut self, sequence: u32) -> Result<(), String> {
+        self.snapshot
+            .take()
+            .ok_or_else(|| "Буфер обмена уже восстановлен".to_string())?
+            .restore(sequence, self.owner, None)
+    }
+
+    fn wait(&mut self) -> bool {
+        if self.start.elapsed() >= COPY_TIMEOUT {
+            false
+        } else {
+            thread::sleep(Duration::from_millis(10));
+            true
         }
     }
 }
@@ -841,16 +889,18 @@ pub fn capture_selection(app: &AppHandle) -> Result<Captured, String> {
     let before_copy = match current_context() {
         Ok(context) => context,
         Err(context_error) => {
-            return match snapshot.restore(marker_sequence, app_owner) {
+            return match snapshot.restore(marker_sequence, app_owner, None) {
                 Ok(()) => Err(context_error),
                 Err(restore_error) => Err(format!("{context_error}. {restore_error}")),
             };
         }
     };
+    // Здесь между снимком эпохи и проверкой прошли миллисекунды, поэтому сравнение
+    // `last_input` ещё имеет смысл: любой ввод в этом окне означает другое выделение.
     let same_target_before_copy = same_target(&target, &before_copy);
     let same_epoch_before_copy = target.last_input == before_copy.last_input;
     if !same_target_before_copy || !same_epoch_before_copy {
-        return match snapshot.restore(marker_sequence, app_owner) {
+        return match snapshot.restore(marker_sequence, app_owner, None) {
             Ok(()) => Err("Фокус или выделение изменились перед копированием".into()),
             Err(restore_error) => Err(format!(
                 "Фокус или выделение изменились перед копированием. {restore_error}"
@@ -858,54 +908,34 @@ pub fn capture_selection(app: &AppHandle) -> Result<Captured, String> {
         };
     }
     if let Err(input_error) = send_ctrl_chord(VK_C) {
-        return match snapshot.restore(marker_sequence, app_owner) {
+        return match snapshot.restore(marker_sequence, app_owner, None) {
             Ok(()) => Err(input_error),
             Err(restore_error) => Err(format!("{input_error}. {restore_error}")),
         };
     }
 
-    let start = Instant::now();
-    let target_pid = target.process_id;
-    let mut snapshot = Some(snapshot);
-    finish_capture_after_copy(
-        &target,
-        &mark,
-        marker_sequence,
-        || {
-            let sequence = unsafe { GetClipboardSequenceNumber() };
-            let context = current_context()?;
-            Ok(CopyObservation { sequence, context })
-        },
-        || read_clipboard_text_observation(app_owner, target_pid),
-        |expected_sequence| {
-            snapshot
-                .take()
-                .ok_or_else(|| "Буфер обмена уже восстановлен".to_string())?
-                .restore(expected_sequence, app_owner)
-        },
-        || {
-            if start.elapsed() >= COPY_TIMEOUT {
-                false
-            } else {
-                thread::sleep(Duration::from_millis(10));
-                true
-            }
-        },
-    )
+    let mut probe = Win32CopyProbe {
+        owner: app_owner,
+        target_pid: target.process_id,
+        start: Instant::now(),
+        snapshot: Some(snapshot),
+    };
+    finish_capture_after_copy(&mut probe, &target, &mark, marker_sequence)
 }
 
-/// Вставляет перевод, только если окно, контрол, ввод пользователя и выделенный текст
-/// остались теми же, что при исходном захвате.
+/// Вставляет перевод, только если окно, контрол и выделенный текст остались теми же, что при
+/// исходном захвате. Эпоха ввода здесь не проверяется: между захватом и вставкой лежит сетевой
+/// перевод, и `GetLastInputInfo` успевает вырасти от простого движения мыши.
+///
+/// Повторный `capture_selection` — не дубль первого захвата, а проверка перед перезаписью:
+/// он читает то, что выделено прямо сейчас, и сравнивает с исходным текстом.
 pub fn paste_text(
     app: &AppHandle,
     text: &str,
     original_text: &str,
     original: &InputContext,
 ) -> Result<PasteOutcome, String> {
-    let before_verify = current_context()?;
-    let same_target_before_verify = same_target(original, &before_verify);
-    let same_epoch_before_verify = original.last_input == before_verify.last_input;
-    if !same_target_before_verify || !same_epoch_before_verify {
+    if !same_target(original, &current_context()?) {
         return Err("Фокус или выделение изменились; замена отменена".into());
     }
 
@@ -913,21 +943,13 @@ pub fn paste_text(
     let Some(selected) = verified.text.as_deref() else {
         return Err("Выделение больше не активно; замена отменена".into());
     };
-    // Повторный захват обновляет timestamp синтетическим Ctrl+C, поэтому здесь
-    // сравниваем идентичность контрола и точный текст, а не исходный timestamp.
-    let mut comparable = verified.context.clone();
-    comparable.last_input = original.last_input;
-    let exact_selection = replacement_unchanged(original, &comparable, original_text, selected);
-    if !exact_selection {
+    if !replacement_unchanged(original, &verified.context, original_text, selected) {
         return Err("Фокус или выделенный текст изменились; замена отменена".into());
     }
 
     let snapshot = ClipboardSnapshot::capture()?;
     wait_modifiers_released()?;
-    let before_paste = current_context()?;
-    let same_target_before_paste = same_target(original, &before_paste);
-    let same_epoch_before_paste = verified.context.last_input == before_paste.last_input;
-    if !same_target_before_paste || !same_epoch_before_paste {
+    if !same_target(original, &current_context()?) {
         return Err("Активное поле изменилось перед вставкой; замена отменена".into());
     }
     let app_owner = app_clipboard_owner(app)?;
@@ -935,16 +957,14 @@ pub fn paste_text(
     let before_input = match current_context() {
         Ok(context) => context,
         Err(context_error) => {
-            return match snapshot.restore(paste_sequence, app_owner) {
+            return match snapshot.restore(paste_sequence, app_owner, None) {
                 Ok(()) => Err(context_error),
                 Err(restore_error) => Err(format!("{context_error}. {restore_error}")),
             };
         }
     };
-    let same_target_before_input = same_target(original, &before_input);
-    let same_epoch_before_input = verified.context.last_input == before_input.last_input;
-    if !same_target_before_input || !same_epoch_before_input {
-        return match snapshot.restore(paste_sequence, app_owner) {
+    if !same_target(original, &before_input) {
+        return match snapshot.restore(paste_sequence, app_owner, None) {
             Ok(()) => Err("Активное поле изменилось перед вставкой; замена отменена".into()),
             Err(restore_error) => Err(format!(
                 "Активное поле изменилось перед вставкой; замена отменена. {restore_error}"
@@ -952,7 +972,7 @@ pub fn paste_text(
         };
     }
     if let Err(input_error) = send_ctrl_chord(VK_V) {
-        return match snapshot.restore(paste_sequence, app_owner) {
+        return match snapshot.restore(paste_sequence, app_owner, None) {
             Ok(()) => Err(input_error),
             Err(restore_error) => Err(format!("{input_error}. {restore_error}")),
         };
@@ -983,7 +1003,7 @@ pub fn paste_text_from_popup(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{cell::RefCell, collections::VecDeque};
+    use std::collections::VecDeque;
     use windows::{
         core::PCWSTR,
         Win32::{
@@ -1042,11 +1062,19 @@ mod tests {
     }
 
     #[test]
-    fn replacement_requires_same_control_input_epoch_and_text() {
+    fn replacement_requires_same_control_and_text_but_survives_mouse_movement() {
         let original = context(1, 2, 3, 4);
         assert!(replacement_unchanged(
             &original,
             &context(1, 2, 3, 4),
+            "hello",
+            "hello"
+        ));
+        // Между захватом и вставкой лежит сетевой перевод: last_input успевает вырасти
+        // от движения мыши, и это не повод отменять замену.
+        assert!(replacement_unchanged(
+            &original,
+            &context(1, 2, 3, 99),
             "hello",
             "hello"
         ));
@@ -1058,7 +1086,13 @@ mod tests {
         ));
         assert!(!replacement_unchanged(
             &original,
-            &context(1, 2, 3, 5),
+            &context(9, 2, 3, 4),
+            "hello",
+            "hello"
+        ));
+        assert!(!replacement_unchanged(
+            &original,
+            &context(1, 2, 9, 4),
             "hello",
             "hello"
         ));
@@ -1077,15 +1111,6 @@ mod tests {
         assert!(!popup_restore_identity_is_valid(&original, 31, true, 30));
         assert!(!popup_restore_identity_is_valid(&original, 30, false, 30));
         assert!(!popup_restore_identity_is_valid(&original, 30, true, 31));
-
-        // Popup click changes last_input. The ordinary replacement predicate remains strict;
-        // only restore_target_from_popup may establish the later epoch after native checks.
-        assert!(!replacement_unchanged(
-            &original,
-            &context(10, 20, 30, 41),
-            "hello",
-            "hello"
-        ));
     }
 
     #[test]
@@ -1105,245 +1130,234 @@ mod tests {
         assert_eq!(popup_restore_action(30, 20, 10), PopupRestoreAction::Abort);
     }
 
+    /// Скриптованный `CopyProbe`: очередь наблюдений и чтений, счётчик пауз и журнал
+    /// восстановлений — по нему проверяется, что буфер возвращается ровно один раз.
+    #[derive(Default)]
+    struct ScriptedProbe {
+        observations: VecDeque<Result<CopyObservation, String>>,
+        reads: VecDeque<Result<ClipboardTextObservation, String>>,
+        restored: Vec<u32>,
+        restore_error: Option<String>,
+        waits: usize,
+        keep_waiting: bool,
+    }
+
+    impl CopyProbe for ScriptedProbe {
+        fn observe(&mut self) -> Result<CopyObservation, String> {
+            self.observations
+                .pop_front()
+                .unwrap_or_else(|| Err("сценарий кончился: observe".into()))
+        }
+
+        fn read_text(&mut self) -> Result<ClipboardTextObservation, String> {
+            self.reads
+                .pop_front()
+                .unwrap_or_else(|| Err("сценарий кончился: read_text".into()))
+        }
+
+        fn restore(&mut self, sequence: u32) -> Result<(), String> {
+            self.restored.push(sequence);
+            match &self.restore_error {
+                Some(error) => Err(error.clone()),
+                None => Ok(()),
+            }
+        }
+
+        fn wait(&mut self) -> bool {
+            self.waits += 1;
+            self.keep_waiting
+        }
+    }
+
+    fn scripted(
+        observations: Vec<Result<CopyObservation, String>>,
+        reads: Vec<Result<ClipboardTextObservation, String>>,
+    ) -> ScriptedProbe {
+        ScriptedProbe {
+            observations: observations.into(),
+            reads: reads.into(),
+            keep_waiting: true,
+            ..Default::default()
+        }
+    }
+
+    fn seen(sequence: u32, context: &InputContext) -> Result<CopyObservation, String> {
+        Ok(CopyObservation {
+            sequence,
+            context: context.clone(),
+        })
+    }
+
+    fn copied(
+        text: &str,
+        sequence: u32,
+        owner: CopyOwnerRelation,
+    ) -> Result<ClipboardTextObservation, String> {
+        Ok(ClipboardTextObservation {
+            text: Some(text.to_string()),
+            sequence,
+            owner,
+        })
+    }
+
     #[test]
     fn capture_polling_waits_past_marker_owned_sequence_change() {
         let target = context(11, 12, 13, 14);
-        let observations = RefCell::new(VecDeque::from([
-            CopyObservation {
-                sequence: 101,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 101,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 102,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 102,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 103,
-                context: target.clone(),
-            },
-        ]));
-        let reads = RefCell::new(VecDeque::from([
-            ClipboardTextObservation {
-                text: Some("marker".to_string()),
-                sequence: 101,
-                owner: CopyOwnerRelation::Marker,
-            },
-            ClipboardTextObservation {
-                text: Some("selected text".to_string()),
-                sequence: 102,
-                owner: CopyOwnerRelation::Target,
-            },
-        ]));
-        let restored = RefCell::new(Vec::new());
-
-        let result = finish_capture_after_copy(
-            &target,
-            "marker",
-            100,
-            || {
-                observations
-                    .borrow_mut()
-                    .pop_front()
-                    .ok_or_else(|| "unexpected observation".to_string())
-            },
-            || Ok(reads.borrow_mut().pop_front().expect("unexpected read")),
-            |sequence| {
-                restored.borrow_mut().push(sequence);
-                Ok(())
-            },
-            || true,
+        let mut probe = scripted(
+            vec![
+                seen(101, &target),
+                seen(101, &target),
+                seen(102, &target),
+                seen(102, &target),
+                seen(103, &target),
+            ],
+            vec![
+                copied("marker", 101, CopyOwnerRelation::Marker),
+                copied("selected text", 102, CopyOwnerRelation::Target),
+            ],
         );
 
-        let captured = match result {
+        let captured = match finish_capture_after_copy(&mut probe, &target, "marker", 100) {
             Ok(captured) => captured,
             Err(error) => panic!("valid copy rejected with exact regression error: {error}"),
         };
         assert_eq!(captured.text.as_deref(), Some("selected text"));
-        assert_eq!(*restored.borrow(), vec![102]);
+        assert_eq!(probe.restored, vec![102]);
     }
 
     #[test]
     fn capture_polling_accepts_target_that_writes_before_marker_read() {
         let target = context(11, 12, 13, 14);
-        let observations = RefCell::new(VecDeque::from([
-            CopyObservation {
-                sequence: 101,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 102,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 103,
-                context: target.clone(),
-            },
-        ]));
-        let restored = RefCell::new(Vec::new());
+        let mut probe = scripted(
+            vec![seen(101, &target), seen(102, &target), seen(103, &target)],
+            vec![copied("selected text", 102, CopyOwnerRelation::Target)],
+        );
 
-        let captured = finish_capture_after_copy(
-            &target,
-            "marker",
-            100,
-            || {
-                observations
-                    .borrow_mut()
-                    .pop_front()
-                    .ok_or_else(|| "unexpected observation".to_string())
-            },
-            || {
-                Ok(ClipboardTextObservation {
-                    text: Some("selected text".to_string()),
-                    sequence: 102,
-                    owner: CopyOwnerRelation::Target,
-                })
-            },
-            |sequence| {
-                restored.borrow_mut().push(sequence);
-                Ok(())
-            },
-            || panic!("stable target copy must not wait"),
-        )
-        .expect("target copy observed during marker read must be accepted");
+        let captured = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .expect("target copy observed during marker read must be accepted");
 
         assert_eq!(captured.text.as_deref(), Some("selected text"));
-        assert_eq!(*restored.borrow(), vec![102]);
+        assert_eq!(probe.restored, vec![102]);
+        assert_eq!(probe.waits, 0, "стабильная копия не должна ждать");
     }
 
     #[test]
-    fn capture_polling_rejects_unrelated_clipboard_change_without_restore() {
+    fn capture_polling_returns_clipboard_before_rejecting_unrelated_change() {
         let target = context(11, 12, 13, 14);
-        let reads = RefCell::new(0);
-        let restored = RefCell::new(Vec::new());
+        let mut probe = scripted(
+            vec![seen(101, &target)],
+            vec![copied("unrelated", 101, CopyOwnerRelation::Unrelated)],
+        );
 
-        let error = finish_capture_after_copy(
-            &target,
-            "marker",
-            100,
-            || {
-                Ok(CopyObservation {
-                    sequence: 101,
-                    context: target.clone(),
-                })
-            },
-            || {
-                *reads.borrow_mut() += 1;
-                Ok(ClipboardTextObservation {
-                    text: Some("unrelated".to_string()),
-                    sequence: 101,
-                    owner: CopyOwnerRelation::Unrelated,
-                })
-            },
-            |sequence| {
-                restored.borrow_mut().push(sequence);
-                Ok(())
-            },
-            || true,
-        )
-        .err()
-        .expect("unrelated clipboard owner must be rejected");
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("unrelated clipboard owner must be rejected");
 
         assert_eq!(error, "Контекст копирования изменился; операция отменена");
-        assert_eq!(*reads.borrow(), 1);
-        assert!(restored.borrow().is_empty());
+        // Восстановление зовётся и здесь: под sequence маркера оно само откажется писать
+        // поверх чужой записи, но своё содержимое вернёт, если запись была нашей.
+        assert_eq!(probe.restored, vec![100]);
     }
 
     #[test]
-    fn capture_polling_rejects_marker_owner_with_non_marker_content() {
+    fn capture_polling_returns_clipboard_when_marker_owner_holds_foreign_content() {
         let target = context(11, 12, 13, 14);
-        let restored = RefCell::new(Vec::new());
+        let mut probe = scripted(
+            vec![seen(101, &target)],
+            vec![copied("other app state", 101, CopyOwnerRelation::Marker)],
+        );
 
-        let error = finish_capture_after_copy(
-            &target,
-            "marker",
-            100,
-            || {
-                Ok(CopyObservation {
-                    sequence: 101,
-                    context: target.clone(),
-                })
-            },
-            || {
-                Ok(ClipboardTextObservation {
-                    text: Some("other app state".to_string()),
-                    sequence: 101,
-                    owner: CopyOwnerRelation::Marker,
-                })
-            },
-            |sequence| {
-                restored.borrow_mut().push(sequence);
-                Ok(())
-            },
-            || true,
-        )
-        .err()
-        .expect("same owner HWND with different content must be rejected");
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("same owner HWND with different content must be rejected");
 
         assert_eq!(error, "Контекст копирования изменился; операция отменена");
-        assert!(restored.borrow().is_empty());
+        assert_eq!(probe.restored, vec![100]);
     }
 
     #[test]
-    fn capture_polling_does_not_restore_over_change_after_marker_read() {
+    fn capture_polling_returns_clipboard_after_change_following_marker_read() {
         let target = context(11, 12, 13, 14);
-        let observations = RefCell::new(VecDeque::from([
-            CopyObservation {
-                sequence: 101,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 102,
-                context: target.clone(),
-            },
-            CopyObservation {
-                sequence: 102,
-                context: target.clone(),
-            },
-        ]));
-        let reads = RefCell::new(VecDeque::from([
-            ClipboardTextObservation {
-                text: Some("marker".to_string()),
-                sequence: 101,
-                owner: CopyOwnerRelation::Marker,
-            },
-            ClipboardTextObservation {
-                text: Some("unrelated".to_string()),
-                sequence: 102,
-                owner: CopyOwnerRelation::Unrelated,
-            },
-        ]));
-        let restored = RefCell::new(Vec::new());
+        let mut probe = scripted(
+            vec![seen(101, &target), seen(102, &target), seen(102, &target)],
+            vec![
+                copied("marker", 101, CopyOwnerRelation::Marker),
+                copied("unrelated", 102, CopyOwnerRelation::Unrelated),
+            ],
+        );
 
-        let error = finish_capture_after_copy(
-            &target,
-            "marker",
-            100,
-            || {
-                observations
-                    .borrow_mut()
-                    .pop_front()
-                    .ok_or_else(|| "unexpected observation".to_string())
-            },
-            || Ok(reads.borrow_mut().pop_front().expect("unexpected read")),
-            |sequence| {
-                restored.borrow_mut().push(sequence);
-                Ok(())
-            },
-            || panic!("changed sequence must be observed again without waiting"),
-        )
-        .err()
-        .expect("unrelated write after marker read must be rejected");
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("unrelated write after marker read must be rejected");
 
         assert_eq!(error, "Контекст копирования изменился; операция отменена");
-        assert!(restored.borrow().is_empty());
+        assert_eq!(probe.restored, vec![100]);
+        assert_eq!(probe.waits, 0, "изменившийся sequence перечитывается без паузы");
+    }
+
+    #[test]
+    fn capture_polling_returns_clipboard_when_window_probe_fails() {
+        let target = context(11, 12, 13, 14);
+        let mut probe = scripted(vec![Err("Не удалось определить активное окно".into())], vec![]);
+
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("window probe failure must abort the capture");
+
+        assert_eq!(error, "Не удалось определить активное окно");
+        assert_eq!(probe.restored, vec![100], "маркер не должен остаться в буфере");
+    }
+
+    #[test]
+    fn capture_polling_returns_clipboard_when_text_read_fails() {
+        let target = context(11, 12, 13, 14);
+        let mut probe = scripted(
+            vec![seen(101, &target)],
+            vec![Err("Буфер обмена занят другой программой".into())],
+        );
+
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("clipboard read failure must abort the capture");
+
+        assert_eq!(error, "Буфер обмена занят другой программой");
+        assert_eq!(probe.restored, vec![100], "маркер не должен остаться в буфере");
+    }
+
+    #[test]
+    fn capture_polling_reports_restore_failure_next_to_the_original_error() {
+        let target = context(11, 12, 13, 14);
+        let mut probe = ScriptedProbe {
+            observations: VecDeque::from([Err("Не удалось определить активное окно".to_string())]),
+            restore_error: Some("Буфер обмена изменился; новое содержимое сохранено".into()),
+            ..Default::default()
+        };
+
+        let error = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .err()
+            .expect("window probe failure must abort the capture");
+
+        assert_eq!(
+            error,
+            "Не удалось определить активное окно. Буфер обмена изменился; новое содержимое сохранено"
+        );
+        assert_eq!(probe.restored, vec![100]);
+    }
+
+    #[test]
+    fn capture_polling_returns_clipboard_when_copy_never_arrives() {
+        let target = context(11, 12, 13, 14);
+        let mut probe = ScriptedProbe {
+            observations: VecDeque::from([seen(100, &target)]),
+            ..Default::default()
+        };
+
+        let captured = finish_capture_after_copy(&mut probe, &target, "marker", 100)
+            .expect("timeout must return an empty capture, not an error");
+
+        assert!(captured.text.is_none());
+        assert_eq!(probe.restored, vec![100]);
+        assert_eq!(probe.waits, 1);
     }
 
     fn wide(value: &str) -> Vec<u16> {
@@ -1383,7 +1397,7 @@ mod tests {
         for (id, bytes) in formats {
             let global =
                 unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len()) }.map_err(|e| e.to_string())?;
-            let data = PreparedData::Global(Some(global));
+            let data = FormatData::Global(Some(global));
             let ptr = unsafe { GlobalLock(global) };
             if ptr.is_null() {
                 return Err("GlobalLock failed".into());
@@ -1392,7 +1406,7 @@ mod tests {
                 std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.cast::<u8>(), bytes.len());
                 let _ = GlobalUnlock(global);
             }
-            prepared.push(PreparedFormat { id: *id, data });
+            prepared.push(ClipboardFormat { id: *id, data });
         }
         let _guard = open_clipboard(Some(owner))?;
         unsafe { EmptyClipboard() }.map_err(|e| e.to_string())?;
@@ -1484,7 +1498,7 @@ mod tests {
         let snapshot = ClipboardSnapshot::capture()?;
         let temporary_sequence =
             put_global_formats(owner, &[(CF_UNICODETEXT_ID, unicode_bytes("temporary"))])?;
-        snapshot.restore(temporary_sequence, owner)?;
+        snapshot.restore(temporary_sequence, owner, None)?;
         for (id, expected) in &original {
             if read_global_format(*id)? != *expected {
                 return Err(format!("format {id} was not restored byte-for-byte"));
@@ -1494,7 +1508,7 @@ mod tests {
         let stale = ClipboardSnapshot::capture()?;
         let stale_sequence = stale.sequence;
         put_global_formats(owner, &[(CF_UNICODETEXT_ID, unicode_bytes("newer"))])?;
-        if stale.restore(stale_sequence, owner).is_ok() {
+        if stale.restore(stale_sequence, owner, None).is_ok() {
             return Err("stale snapshot unexpectedly overwrote newer clipboard".into());
         }
         if read_global_format(CF_UNICODETEXT_ID)? != unicode_bytes("newer") {

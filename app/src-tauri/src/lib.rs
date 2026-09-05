@@ -13,6 +13,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Mutex,
     },
+    time::{Duration, Instant},
 };
 
 use serde::Serialize;
@@ -250,13 +251,18 @@ impl<C> PopupCaptureStore<C> {
         });
     }
 
-    fn take_for_replace(
-        &mut self,
+    /// Сессия остаётся в хранилище: неудачная вставка (занят буфер, мигнул фокус) должна
+    /// оставлять кнопку «Заменить» рабочей. Убирает сессию только успешная замена — `clear`.
+    fn checked_for_replace(
+        &self,
         current_request_id: u64,
         request_id: u64,
         source_text: &str,
         translated_text: String,
-    ) -> Result<(PopupCaptureSession<C>, String), String> {
+    ) -> Result<(PopupCaptureSession<C>, String), String>
+    where
+        C: Clone,
+    {
         if translated_text.is_empty() {
             return Err("Перевод пуст; замена отменена".into());
         }
@@ -278,7 +284,11 @@ impl<C> PopupCaptureStore<C> {
             return Err("Исходный текст изменился; замена отменена".into());
         }
         Ok((
-            self.current.take().expect("popup capture checked above"),
+            PopupCaptureSession {
+                request_id: session.request_id,
+                source_text: session.source_text.clone(),
+                context: session.context.clone(),
+            },
             translated_text,
         ))
     }
@@ -296,12 +306,8 @@ fn next_popup_request() -> u64 {
     POPUP_REQUEST.fetch_add(1, Ordering::SeqCst) + 1
 }
 
-fn request_matches(current: u64, candidate: u64) -> bool {
-    current == candidate
-}
-
 fn popup_request_is_current(request_id: u64) -> bool {
-    request_matches(POPUP_REQUEST.load(Ordering::SeqCst), request_id)
+    POPUP_REQUEST.load(Ordering::SeqCst) == request_id
 }
 
 fn popup_command_origin_is_valid(label: &str, visible: bool) -> bool {
@@ -325,7 +331,36 @@ fn on_shortcut(app: &AppHandle, sc: &Shortcut, ev: ShortcutEvent) {
     if let Some(action) = action {
         if let Err(error) = dispatch_action(app, action, s) {
             eprintln!("действие хоткея: {error}");
+            show_busy_toast(app);
         }
+    }
+}
+
+/// Хоткей во время другой операции: молчаливый отказ выглядит как «программа не работает».
+/// Автоповтор зажатой клавиши идёт десятками нажатий в секунду, поэтому тост не чаще
+/// раза в полтора секунды.
+const BUSY_TOAST_INTERVAL: Duration = Duration::from_millis(1500);
+static LAST_BUSY_TOAST: Mutex<Option<Instant>> = Mutex::new(None);
+
+fn busy_toast_is_due(last: Option<Instant>, now: Instant) -> bool {
+    match last {
+        Some(previous) => now.duration_since(previous) >= BUSY_TOAST_INTERVAL,
+        None => true,
+    }
+}
+
+fn show_busy_toast(app: &AppHandle) {
+    let now = Instant::now();
+    let Ok(mut last) = LAST_BUSY_TOAST.lock() else {
+        return;
+    };
+    if !busy_toast_is_due(*last, now) {
+        return;
+    }
+    *last = Some(now);
+    drop(last);
+    if let Err(error) = popup::show_toast(app, "Подождите: идёт предыдущая операция") {
+        eprintln!("тост: {error}");
     }
 }
 
@@ -573,9 +608,10 @@ fn paste_toast_text(s: &str, outcome: capture::PasteOutcome) -> String {
 #[cfg(test)]
 mod toast_tests {
     use super::{
-        paste_toast_text, popup_command_origin_is_valid, request_matches,
-        screen_command_origin_is_valid, toast_text, PopupCaptureStore,
+        busy_toast_is_due, paste_toast_text, popup_command_origin_is_valid,
+        screen_command_origin_is_valid, toast_text, PopupCaptureStore, BUSY_TOAST_INTERVAL,
     };
+    use std::time::Instant;
 
     #[test]
     fn collapses_whitespace_and_cuts_at_40() {
@@ -592,9 +628,15 @@ mod toast_tests {
     }
 
     #[test]
-    fn popup_completion_must_match_latest_request() {
-        assert!(request_matches(7, 7));
-        assert!(!request_matches(8, 7));
+    fn busy_toast_is_rate_limited_against_hotkey_autorepeat() {
+        let now = Instant::now();
+        assert!(busy_toast_is_due(None, now));
+        assert!(!busy_toast_is_due(Some(now), now));
+        assert!(!busy_toast_is_due(
+            Some(now),
+            now + BUSY_TOAST_INTERVAL - std::time::Duration::from_millis(1)
+        ));
+        assert!(busy_toast_is_due(Some(now), now + BUSY_TOAST_INTERVAL));
     }
 
     #[test]
@@ -610,36 +652,42 @@ mod toast_tests {
         store.set(7, "source".into(), "private-context");
 
         assert!(store
-            .take_for_replace(8, 7, "source", "displayed".into())
+            .checked_for_replace(8, 7, "source", "displayed".into())
             .is_err());
         assert!(store
-            .take_for_replace(7, 7, "other", "displayed".into())
+            .checked_for_replace(7, 7, "other", "displayed".into())
             .is_err());
 
         let (session, displayed) = store
-            .take_for_replace(7, 7, "source", "  displayed exactly\n".into())
+            .checked_for_replace(7, 7, "source", "  displayed exactly\n".into())
             .unwrap();
         assert_eq!(session.context, "private-context");
         assert_eq!(displayed, "  displayed exactly\n");
+
+        // Неудачная вставка не съедает захват: повтор возможен, пока сессию не очистит успех.
         assert!(store
-            .take_for_replace(7, 7, "source", "second click".into())
+            .checked_for_replace(7, 7, "source", "second try".into())
+            .is_ok());
+        store.clear();
+        assert!(store
+            .checked_for_replace(7, 7, "source", "after success".into())
             .is_err());
     }
 
     #[test]
     fn popup_replace_rejects_manual_or_invalid_results_without_consuming_capture() {
-        let mut manual: PopupCaptureStore<()> = PopupCaptureStore::default();
+        let manual: PopupCaptureStore<()> = PopupCaptureStore::default();
         assert!(manual
-            .take_for_replace(3, 3, "source", "translation".into())
+            .checked_for_replace(3, 3, "source", "translation".into())
             .is_err());
 
         let mut captured = PopupCaptureStore::default();
         captured.set(3, "source".into(), ());
         assert!(captured
-            .take_for_replace(3, 3, "source", String::new())
+            .checked_for_replace(3, 3, "source", String::new())
             .is_err());
         assert!(captured
-            .take_for_replace(3, 3, "source", "translation".into())
+            .checked_for_replace(3, 3, "source", "translation".into())
             .is_ok());
     }
 
@@ -845,7 +893,7 @@ async fn replace_popup_translation(
         .popup_capture
         .lock()
         .map_err(|_| "Состояние окна перевода недоступно".to_string())?
-        .take_for_replace(
+        .checked_for_replace(
             POPUP_REQUEST.load(Ordering::SeqCst),
             request_id,
             &source_text,
@@ -865,10 +913,15 @@ async fn replace_popup_translation(
         ) {
             Ok(outcome) => outcome,
             Err(message) => {
+                // Захват остаётся в силе: занятый буфер или мигнувший фокус — повод повторить,
+                // а не гасить кнопку «Заменить» до нового выделения.
                 popup::show_after_replace_error(&app);
                 return Err(message);
             }
         };
+        if let Ok(mut popup_capture) = app.state::<AppState>().popup_capture.lock() {
+            popup_capture.clear();
+        }
 
         if let Err(error) = popup::show_toast(&app, &paste_toast_text(&replacement, paste_outcome))
         {
