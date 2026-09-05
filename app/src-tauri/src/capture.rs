@@ -217,6 +217,48 @@ fn write_text_owned(text: &str, expected_sequence: u32, owner: HWND) -> Result<u
     Ok(unsafe { GetClipboardSequenceNumber() })
 }
 
+/// Снимает один формат буфера. `None` — формат нельзя безопасно скопировать (отложенная
+/// отрисовка, пустой размер, неподдерживаемый вид): такой формат пропускается, чтобы не
+/// срывать перевод из-за содержимого чужого буфера, которое мы всё равно не смогли бы вернуть.
+fn capture_format(id: u32) -> Option<FormatData> {
+    let handle = unsafe { GetClipboardData(id) }.ok()?;
+    match format_kind(id) {
+        FormatKind::Global => {
+            let global = HGLOBAL(handle.0);
+            let size = unsafe { GlobalSize(global) };
+            if size == 0 {
+                return None;
+            }
+            let ptr = unsafe { GlobalLock(global) };
+            if ptr.is_null() {
+                return None;
+            }
+            let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), size) }.to_vec();
+            unsafe {
+                let _ = GlobalUnlock(global);
+            }
+            Some(FormatData::Bytes(bytes))
+        }
+        FormatKind::Bitmap => {
+            let copy = unsafe { CopyImage(handle, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION) }.ok()?;
+            Some(FormatData::Bitmap(Some(copy)))
+        }
+        FormatKind::EnhMetaFile => {
+            let copy = unsafe {
+                windows::Win32::Graphics::Gdi::CopyEnhMetaFileW(
+                    HENHMETAFILE(handle.0),
+                    PCWSTR::null(),
+                )
+            };
+            if copy.0.is_null() {
+                return None;
+            }
+            Some(FormatData::EnhMetaFile(Some(copy)))
+        }
+        FormatKind::Unsupported => None,
+    }
+}
+
 impl ClipboardSnapshot {
     fn capture() -> Result<Self, String> {
         let _guard = open_clipboard(None)?;
@@ -225,65 +267,22 @@ impl ClipboardSnapshot {
             return Err("Не удалось прочитать форматы буфера обмена".into());
         }
         let mut formats = Vec::with_capacity(count as usize);
+        let mut seen = 0usize;
         let mut id = 0;
         loop {
             id = unsafe { EnumClipboardFormats(id) };
             if id == 0 {
                 break;
             }
-            let handle = unsafe { GetClipboardData(id) }
-                .map_err(|_| format!("Формат буфера обмена {id} недоступен для сохранения"))?;
-            let data = match format_kind(id) {
-                FormatKind::Global => {
-                    let global = HGLOBAL(handle.0);
-                    let size = unsafe { GlobalSize(global) };
-                    if size == 0 {
-                        return Err(format!(
-                            "Формат буфера обмена {id} нельзя безопасно скопировать"
-                        ));
-                    }
-                    let ptr = unsafe { GlobalLock(global) };
-                    if ptr.is_null() {
-                        return Err(format!(
-                            "Формат буфера обмена {id} нельзя безопасно заблокировать"
-                        ));
-                    }
-                    let bytes =
-                        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), size) }.to_vec();
-                    unsafe {
-                        let _ = GlobalUnlock(global);
-                    }
-                    FormatData::Bytes(bytes)
-                }
-                FormatKind::Bitmap => {
-                    let copy =
-                        unsafe { CopyImage(handle, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION) }
-                            .map_err(|_| {
-                                "Не удалось сохранить bitmap из буфера обмена".to_string()
-                            })?;
-                    FormatData::Bitmap(Some(copy))
-                }
-                FormatKind::EnhMetaFile => {
-                    let copy = unsafe {
-                        windows::Win32::Graphics::Gdi::CopyEnhMetaFileW(
-                            HENHMETAFILE(handle.0),
-                            PCWSTR::null(),
-                        )
-                    };
-                    if copy.0.is_null() {
-                        return Err("Не удалось сохранить метафайл из буфера обмена".into());
-                    }
-                    FormatData::EnhMetaFile(Some(copy))
-                }
-                FormatKind::Unsupported => {
-                    return Err(format!(
-                        "Формат буфера обмена {id} пока нельзя восстановить без потерь"
-                    ));
-                }
-            };
-            formats.push(ClipboardFormat { id, data });
+            seen += 1;
+            // Возврат буфера — вежливость, а не условие перевода: формат, который нельзя
+            // снять (отложенная отрисовка, пустой, неподдерживаемый), пропускаем, иначе одна
+            // экзотика в чужом буфере сорвала бы весь захват выделения.
+            if let Some(data) = capture_format(id) {
+                formats.push(ClipboardFormat { id, data });
+            }
         }
-        if formats.len() != count as usize {
+        if seen != count as usize {
             return Err("Список форматов буфера обмена изменился во время чтения".into());
         }
         let sequence = unsafe { GetClipboardSequenceNumber() };
@@ -822,7 +821,9 @@ fn finish_capture_after_copy(
                     .expect_err("возврат буфера после ошибки всегда возвращает ошибку"))
             }
         };
-    restore_clipboard(probe, restore_sequence, None)?;
+    // Текст уже снят — возврат прежнего буфера теперь вежливость, а не условие успеха:
+    // если вернуть его не удалось (отложенный формат, чужая новая запись), перевод не теряем.
+    let _ = restore_clipboard(probe, restore_sequence, None);
     match copied {
         Copied::Timeout => Ok(Captured {
             text: None,
