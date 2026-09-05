@@ -32,3 +32,4 @@ app/docs/
 # контекст для Claude и локальный тестовый стенд
 CLAUDE.md
 tools/stand/
+design/overlay/overlay-vybora-oblasti.html
