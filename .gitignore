@@ -3,6 +3,11 @@ app/node_modules/
 app/dist/
 app/src-tauri/target/
 app/src-tauri/gen/schemas/
+app/src-tauri/resources/ocr/models/
+app/src-tauri/resources/ocr/runtime/
+app/src-tauri/resources/ocr/manifest.generated.json
+tools/ocr/.cache/
+tools/ocr/fixtures/
 
 # локальные рабочие файлы
 decisions.tsv

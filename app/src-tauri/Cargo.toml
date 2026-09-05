@@ -28,6 +28,12 @@ tauri-plugin-single-instance = "2.4.4"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
 whatlang = "0.18.0"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
-windows = { version = "0.62.2", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_StationsAndDesktops", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_Foundation", "Win32_Security"] }
+windows = { version = "0.62.2", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_StationsAndDesktops", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_HiDpi", "Win32_Foundation", "Win32_Security"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "cookies"] }
 tauri-plugin-updater = "2.11.0"
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+ppocr-rs = { version = "=0.7.3", features = ["example-dynamic"] }
+ndarray = "0.16.1"
+# ppocr-rs 0.7.3 pins ort rc.9/API 20. The dynamically loaded ORT 1.23.2 runtime
+# remains ABI-compatible with that older API surface.
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic"] }

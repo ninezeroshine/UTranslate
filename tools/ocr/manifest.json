@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "note": "Paddle does not publish checksums for these model tarballs. SHA-256 values below were computed after HTTPS download and are UTranslate project pins, not vendor-verified hashes.",
+  "artifacts": {
+    "detArchive": {
+      "url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_onnx_infer.tar",
+      "modelCard": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx",
+      "sha256": "781056046c9ed77a15c94681605db6a0f62317c2e9cce6931c71da2478d4bc30",
+      "bytes": 4843520,
+      "member": "PP-OCRv5_mobile_det_onnx_infer/inference.onnx",
+      "modelSha256": "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d",
+      "modelBytes": 4826518
+    },
+    "recArchive": {
+      "url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/eslav_PP-OCRv5_mobile_rec_onnx_infer.tar",
+      "modelCard": "https://huggingface.co/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx",
+      "sha256": "49e3d48598e6aed05eaa7c9b0a759ab4261d9021dff2d71849d4f1c95b79d30b",
+      "bytes": 7915520,
+      "member": "eslav_PP-OCRv5_mobile_rec_onnx_infer/inference.onnx",
+      "modelSha256": "b3018ef2b09a0250b6e0c8e871c927098363e5fd4df890cc68e8358eb0aaf1bd",
+      "modelBytes": 7887627
+    },
+    "dict": {
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/b03f46425e8ff4442b268ce449e3eef758146cd4/ppocr/utils/dict/ppocrv5_eslav_dict.txt",
+      "sha256": "3e95f1581557162870cacdba5af91a4c6be2890710d395b0c3c7578e7ee5e6eb",
+      "bytes": 1663,
+      "lines": 517
+    },
+    "ortArchive": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip",
+      "sha256": "0b38df9af21834e41e73d602d90db5cb06dbd1ca618948b8f1d66d607ac9f3cd",
+      "bytes": 78127794,
+      "directory": "onnxruntime-win-x64-1.23.2",
+      "dllSha256": "dec964ab1ee36cc9b0ae247d13b376627992fc57dec0454354017ab8fd84f1ea",
+      "providersSha256": "a2b3a50956aa75a9879c8472bc7df4f7a8072bcd2db19a1b7d988e7688f293ef"
+    }
+  },
+  "versions": {
+    "paddleOcrCommit": "b03f46425e8ff4442b268ce449e3eef758146cd4",
+    "onnxRuntime": "1.23.2",
+    "ppocrRs": "0.7.3",
+    "ppocrRsCommit": "bb287d4311c0d333da363b8f8ce944c16884aa9e",
+    "ortCrate": "2.0.0-rc.9",
+    "ortApi": 20
+  },
+  "licenses": {
+    "modelsAndPaddleReference": "Apache-2.0",
+    "ppocrRs": "Apache-2.0 (declared in crate metadata; the crate archive omits a LICENSE file, so the standard text is preserved here)",
+    "onnxRuntime": "MIT with ThirdPartyNotices.txt",
+    "visualCppRuntime": "Microsoft Visual Studio REDIST list; copied from the licensed Build Tools installation and recorded per build"
+  }
+}

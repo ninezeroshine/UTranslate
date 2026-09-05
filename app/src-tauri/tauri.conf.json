@@ -5,9 +5,9 @@
   "version": "0.2.1",
   "identifier": "com.utranslate.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm ocr:prepare && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm ocr:prepare && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -55,6 +55,7 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
+    "resources": ["resources/ocr/**/*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -4,6 +4,7 @@
   "version": "0.2.1",
   "type": "module",
   "scripts": {
+    "ocr:prepare": "node ../tools/prepare-ocr.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "test:frontend": "node --experimental-strip-types --test src/main/latestRequest.test.ts",

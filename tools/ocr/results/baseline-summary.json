@@ -1,0 +1,36 @@
+{
+  "environment": {
+    "cpu": "AMD Ryzen 9 5900X, 12C/24T",
+    "os": "Windows x64",
+    "threads": { "intraOp": 4, "interOp": 1 },
+    "onnxRuntime": "1.23.2 CPU",
+    "telemetryDisabled": true
+  },
+  "pythonReference": {
+    "fixtures": 84,
+    "normalizedCer": 0.01957831325301205,
+    "exactLineRecall": 0.7407407407407407,
+    "warmMedianMs": 151.6511,
+    "warmP95Ms": 197.9919,
+    "coldSessionInitMedianMs": 228.6665,
+    "coldFirstInferenceMedianMs": 135.8638,
+    "oneEngineRssDeltaMiB": 40.9258
+  },
+  "rustProduction": {
+    "profile": "cargo test --release (optimized)",
+    "fixtures": 84,
+    "normalizedCer": 0.020644511581067473,
+    "exactLineRecall": 0.75,
+    "warmMedianMs": 21.6279,
+    "warmP95Ms": 56.3595,
+    "coloredFixtures": 6,
+    "coloredNormalizedCer": 0.026143790849673203,
+    "coloredExactLineRecall": 0.5,
+    "coloredWarmMedianMs": 26.0915,
+    "coloredWarmP95Ms": 162.1673,
+    "fullHd45RegionElapsedMs": 769.8887,
+    "fullHdDetectedRegions": 45
+  },
+  "normalization": "Metrics collapse whitespace per line. Production preserves case and punctuation and does not map Latin/Cyrillic confusables.",
+  "limitations": "Synthetic Segoe UI crops are useful for regression and channel-order checks but do not replace a real screenshot corpus. Full-HD timing is a single cold-process synthetic dense paragraph measurement, not a distribution."
+}

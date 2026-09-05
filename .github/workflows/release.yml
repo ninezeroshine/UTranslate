@@ -34,6 +34,10 @@ jobs:
         run: pnpm install
         working-directory: app
 
+      - name: Prepare pinned OCR resources
+        run: pnpm ocr:prepare
+        working-directory: app
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
