@@ -37,6 +37,7 @@ Select text in an app that supports `Ctrl+C`/`Ctrl+V`, press `Ctrl+Alt+T` — a 
 
 ## Features
 
+- **Translate a screen region** — `Ctrl+Alt+S` opens a native selector; Russian and English text are recognized locally, then only the recognized text is sent to the translation engine. The screenshot never enters the network or clipboard.
 - **Popup next to the cursor in apps that support `Ctrl+C`/`Ctrl+V`** — browser, chat app, editor, terminal: selection is captured by emulating the key presses, the way QTranslate did it.
 - **In-place replacement** — a second hotkey translates and pastes into the same field only if the original window and selection are still active; a changed context cancels the operation. Supported clipboard formats are preserved, and ambiguous captures are cancelled without discarding the original contents. A toast confirms "Replaced: …" after the paste.
 - **Three engines with no keys** — Google → Bing → MyMemory, automatic fallback to the next one on failure with a badge showing why.
@@ -77,6 +78,7 @@ Default hotkeys:
 | Action | Shortcut |
 |---|---|
 | Translate selection into the popup | `Ctrl+Alt+T` |
+| Translate a screen region | `Ctrl+Alt+S` |
 | Replace selection with its translation | `Ctrl+Alt+R` |
 | Open the main window | `Ctrl+Alt+W` |
 
@@ -99,6 +101,8 @@ Click **“Edit translation”** to revise the result in the popup. **“Done”
 </div>
 
 **Open the window and translate manually.** `Ctrl+Alt+W` opens the main window with Translate, History, Favorites, and Settings tabs; if you had a selection, it's dropped into the source field.
+
+**Translate text on screen.** Press `Ctrl+Alt+S` or **“From screen”** → drag around text on any monitor → wait for local recognition and translation in the usual popup. `Esc` and right click cancel. Use **“Correct text”** to fix recognition mistakes. OCR initially targets Russian and English; see the [architecture, privacy, and limitations](docs/screen-translation.md).
 
 For one or two words, the popup switches to dictionary mode and shows alternative meanings instead of a phrase translation. The pin icon in the popup header keeps it on screen — it stays open and refreshes on the next hotkey press until closed explicitly.
 
@@ -137,7 +141,7 @@ sequenceDiagram
 
 Stack: Tauri 2 (Rust) + React 19 + TypeScript + Tailwind CSS v4 + Motion.
 
-Privacy: the text goes only to the engine you picked, nowhere else. Everything else is local, under `%APPDATA%\com.utranslate.app\` (`settings.json` and `utranslate.db`) — no telemetry, no analytics.
+Privacy: the text goes only to the engine you picked, nowhere else. OCR screenshots are processed only in memory on your computer. Everything else is local, under `%APPDATA%\com.utranslate.app\` (`settings.json` and `utranslate.db`) — no telemetry, no analytics.
 
 ## Building from source
 
@@ -170,7 +174,6 @@ The script bumps the version in `package.json`, `src-tauri/tauri.conf.json`, and
 
 ## Roadmap
 
-- **Screen-area OCR** (`Ctrl+Alt+S`): a selection overlay → `Windows.Media.Ocr` → the same popup.
 - **LLM actions in the popup**: explain, rephrase, fix, change tone — via Gemini or another keyed provider.
 - **DeepL and Gemini as translation engines**, alongside the three free ones.
 - **English UI**.
