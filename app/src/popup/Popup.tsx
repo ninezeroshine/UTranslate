@@ -2,11 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { currentMonitor, LogicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { listen, win } from "../lib/tauri";
 import { AnimatePresence, motion, useReducedMotion, type Transition, type Variants } from "motion/react";
-import { api, engineLabel, errorHint, errorText, posName, speak, type Settings, type TranslateResult } from "../lib/api";
+import { api, engineLabel, engineName, errorHint, errorText, posName, speak, type Settings, type TranslateResult } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { applyTheme } from "../lib/theme";
 import { FavoriteController } from "../main/latestRequest";
-import { Badge, IconButton, Pill } from "../ui";
+import { IconButton, Pill } from "../ui";
 
 type Status = "loading" | "result" | "error" | "input";
 type Show = {
@@ -29,6 +29,7 @@ type ReplaceFocusGuard = {
 type Toast = { text: string; overlay: boolean };
 /** Ошибка на карточке: заголовок и строка «что делать». */
 type ErrorState = { title: string; hint: string };
+type EditSaveState = "idle" | "saving" | "error";
 
 // Геометрия — см. docs/motion.md. MARGIN совпадает с src-tauri/src/popup.rs.
 const CARD_W = 430;
@@ -42,6 +43,7 @@ const TOAST_MS = 2000;
 const PAD_CARD = 14;
 const PAD_PILL = "6px 4px";
 const PILL_H = 46;
+const KNOWN_ENGINES = new Set(["google", "bing", "mymemory"]);
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const T_ENTER: Transition = { duration: 0.22, ease: EASE_OUT };
@@ -97,6 +99,14 @@ export default function Popup() {
   const [replaceRequestId, setReplaceRequestId] = useState<number | null>(null);
   const [replaceState, setReplaceState] = useState<ReplaceState>("idle");
   const [replaceError, setReplaceError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [editSaveState, setEditSaveState] = useState<EditSaveState>("idle");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [engineMenuOpen, setEngineMenuOpen] = useState(false);
+  const [selectedEngine, setSelectedEngine] = useState<string | undefined>(undefined);
+  const [enginePending, setEnginePending] = useState(false);
+  const [engineError, setEngineError] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
   const pinnedRef = useRef(false);
@@ -105,8 +115,12 @@ export default function Popup() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+  const engineButtonRef = useRef<HTMLButtonElement>(null);
   const debounce = useRef<number | undefined>(undefined);
   const localRequestRef = useRef(0);
+  const editRequestRef = useRef(0);
+  const selectedEngineRef = useRef<string | undefined>(undefined);
   const backendRequestRef = useRef<number | null>(null);
   const replaceContextRef = useRef<ReplaceContext | null>(null);
   const replaceAttemptRef = useRef(0);
@@ -124,10 +138,19 @@ export default function Popup() {
   const winSizeRef = useRef({ w: CARD_W + MARGIN * 2, h: CARD_H_DEFAULT + MARGIN * 2 });
   const pendingFitRef = useRef<{ w: number; h: number } | null>(null);
   const fittingRef = useRef(false);
+  const editModeRef = useRef(false);
+  editModeRef.current = editMode;
+  const engineMenuOpenRef = useRef(false);
+  engineMenuOpenRef.current = engineMenuOpen;
+  const editSaveStateRef = useRef<EditSaveState>("idle");
+  editSaveStateRef.current = editSaveState;
+  const committedTextRef = useRef("");
+  committedTextRef.current = result?.text ?? "";
 
   function hideNow() {
     window.clearTimeout(debounce.current);
     localRequestRef.current += 1;
+    editRequestRef.current += 1;
     backendRequestRef.current = null;
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
@@ -139,6 +162,7 @@ export default function Popup() {
   function closeAnimated() {
     window.clearTimeout(debounce.current);
     localRequestRef.current += 1;
+    editRequestRef.current += 1;
     backendRequestRef.current = null;
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
@@ -168,6 +192,7 @@ export default function Popup() {
     window.clearTimeout(toastTimer.current);
     window.clearTimeout(debounce.current);
     localRequestRef.current += 1;
+    editRequestRef.current += 1;
     backendRequestRef.current = payload.requestId;
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
@@ -186,6 +211,9 @@ export default function Popup() {
     pendingFitRef.current = null;
     setResult(null); setError(null); setFavorite(false); setShowOriginal(false); setCopied(false);
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
+    setEditMode(false); setDraft(""); setEditSaveState("idle"); setEditError(null);
+    setEngineMenuOpen(false); setSelectedEngine(undefined); setEnginePending(false); setEngineError(null);
+    selectedEngineRef.current = undefined;
     setSource(payload.text); setTarget(payload.target); setDetected(payload.detected); setClipNote(payload.clipboardReplaced);
     if (payload.text) {
       setInputMode(false); setStatus("loading"); setExpanded(false);
@@ -244,7 +272,26 @@ export default function Popup() {
         });
       }),
     ];
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") hideNow(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (engineMenuOpenRef.current) {
+        e.preventDefault();
+        setEngineMenuOpen(false);
+        window.requestAnimationFrame(() => engineButtonRef.current?.focus());
+        return;
+      }
+      if (editModeRef.current) {
+        e.preventDefault();
+        if (editSaveStateRef.current === "saving") return;
+        editRequestRef.current += 1;
+        setDraft(committedTextRef.current);
+        setEditMode(false);
+        setEditSaveState("idle");
+        setEditError(null);
+        return;
+      }
+      hideNow();
+    };
     window.addEventListener("keydown", onKey);
     // Отладка вёрстки в обычном браузере: window.__utDemo.show({...}) / .result({...}) / .error("…")
     (window as unknown as { __utDemo: unknown }).__utDemo = {
@@ -260,12 +307,15 @@ export default function Popup() {
   }, []);
 
   function applyResult(r: TranslateResult, replacementRequestId: number | null = null) {
+    editRequestRef.current += 1;
     favoriteControllerRef.current.accept(r.historyId, r.isFavorite);
     const context = replaceContextRef.current;
     replacePendingRef.current = false;
     setReplaceRequestId(context?.requestId === replacementRequestId ? replacementRequestId : null);
     setReplaceState("idle");
     setReplaceError(null);
+    setDraft(r.text); setEditMode(false); setEditSaveState("idle"); setEditError(null);
+    setEnginePending(false); setEngineError(null); setEngineMenuOpen(false);
     setResult(r); setDetected(r.detected); setTarget(r.target); setFavorite(r.isFavorite); setStatus("result"); setExpanded(true);
   }
 
@@ -278,11 +328,14 @@ export default function Popup() {
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
+    editRequestRef.current += 1;
     const request = ++localRequestRef.current;
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
+    setEditMode(false); setEditSaveState("idle"); setEditError(null);
+    setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
     setStatus("loading"); setError(null);
     try {
-      const translated = await api.translate(text, to);
+      const translated = await api.translate(text, to, selectedEngineRef.current);
       if (request === localRequestRef.current) applyResult(translated, replacementRequestId);
     } catch (e) {
       if (request === localRequestRef.current) {
@@ -308,7 +361,11 @@ export default function Popup() {
     if (inputModeRef.current) inputHRef.current = naturalHeight;
     setBox({ w: CARD_W, h: naturalHeight });
   };
-  useLayoutEffect(measure, [expanded, status, result, showOriginal, input, error, clipNote, session, replaceState, replaceError]);
+  useLayoutEffect(measure, [
+    expanded, status, result, showOriginal, input, error, clipNote, session,
+    replaceState, replaceError, editMode, draft, editSaveState, editError,
+    engineMenuOpen, enginePending, engineError,
+  ]);
   // Шрифты и перенос строк доезжают позже коммита — следим за реальной высотой.
   useEffect(() => {
     const el = cardRef.current;
@@ -377,6 +434,102 @@ export default function Popup() {
   }
 
   const currentText = inputMode ? input : source;
+  const visibleTranslation = editMode ? draft : (result?.text ?? "");
+  const hasVisibleTranslation = visibleTranslation.trim().length > 0;
+  const editDirty = result !== null && draft !== result.text;
+  const controlsBusy = editSaveState === "saving" || enginePending;
+
+  function beginEdit() {
+    if (!result || enginePending || replaceState === "pending") return;
+    setDraft(result.text);
+    setEditError(null);
+    setEditSaveState("idle");
+    setEngineMenuOpen(false);
+    setEditMode(true);
+    const focusEditor = () => window.requestAnimationFrame(() => {
+      const field = editRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+    focusEditor();
+    if (win) void win.setFocus().then(focusEditor).catch(() => undefined);
+  }
+
+  function cancelEdit() {
+    if (editSaveState === "saving") return;
+    editRequestRef.current += 1;
+    setDraft(result?.text ?? "");
+    setEditMode(false);
+    setEditSaveState("idle");
+    setEditError(null);
+  }
+
+  async function saveEditedTranslation(): Promise<TranslateResult | null> {
+    if (!result || !hasVisibleTranslation || editSaveState === "saving") return null;
+    const nextText = draft;
+    if (nextText === result.text) {
+      setEditMode(false);
+      setEditError(null);
+      return result;
+    }
+
+    const request = ++editRequestRef.current;
+    const sourceText = currentText;
+    setEditSaveState("saving");
+    setEditError(null);
+    setEngineMenuOpen(false);
+    try {
+      const actualFavorite = result.historyId === null
+        ? result.isFavorite
+        : await api.updateTranslationText(result.historyId, sourceText, result.text, nextText);
+      if (request !== editRequestRef.current) return null;
+      const updated = { ...result, text: nextText, isFavorite: actualFavorite };
+      favoriteControllerRef.current.accept(updated.historyId, actualFavorite);
+      setResult(updated);
+      setDraft(nextText);
+      setFavorite(actualFavorite);
+      setEditMode(false);
+      setEditSaveState("idle");
+      setEditError(null);
+      return updated;
+    } catch (e) {
+      if (request !== editRequestRef.current) return null;
+      setEditSaveState("error");
+      setEditError(`Не удалось сохранить перевод: ${errorText(e)}. Исправленный текст не потерян.`);
+      return null;
+    }
+  }
+
+  function toggleEngineMenu() {
+    if (!result || controlsBusy || editMode || replaceState === "pending") return;
+    const opening = !engineMenuOpen;
+    setEngineMenuOpen(opening);
+    if (!opening) return;
+    const request = localRequestRef.current;
+    void api.getSettings().then((fresh) => {
+      if (request === localRequestRef.current) setSettings(fresh);
+    }).catch(() => undefined);
+  }
+
+  async function chooseEngine(engine: string | undefined) {
+    if (!result || controlsBusy || editMode || replaceState === "pending" || !currentText.trim()) return;
+    setSelectedEngine(engine);
+    selectedEngineRef.current = engine;
+    setEngineMenuOpen(false);
+    setEnginePending(true);
+    setEngineError(null);
+    backendRequestRef.current = null;
+    const request = ++localRequestRef.current;
+    try {
+      const translated = await api.translate(currentText, target, engine);
+      if (request === localRequestRef.current) applyResult(translated, replacementRequestFor(currentText));
+    } catch (e) {
+      if (request !== localRequestRef.current) return;
+      setEnginePending(false);
+      setEngineError(`Не удалось перевести через ${engine ? engineName(engine) : "автоматический выбор"}: ${errorText(e)}.`);
+    }
+  }
 
   function replacementRequestFor(text: string) {
     const context = replaceContextRef.current;
@@ -385,31 +538,39 @@ export default function Popup() {
 
   function onInput(v: string) {
     setInput(v);
+    setSelectedEngine(undefined);
+    selectedEngineRef.current = undefined;
     window.clearTimeout(debounce.current);
     favoriteControllerRef.current.clear();
     backendRequestRef.current = null;
     localRequestRef.current += 1;
+    editRequestRef.current += 1;
     replaceAttemptRef.current += 1;
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
     replaceContextRef.current = null;
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
+    setEditMode(false); setDraft(""); setEditSaveState("idle"); setEditError(null);
+    setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
     setResult(null); setFavorite(false); setStatus("input");
     if (!v.trim()) return;
     debounce.current = window.setTimeout(() => translateNow(v), 600);
   }
 
   function switchTarget() {
-    if (!settings) return;
+    if (!settings || controlsBusy || editMode || replaceState === "pending") return;
     const next = target === settings.primaryLang ? settings.secondaryLang : settings.primaryLang;
     setTarget(next);
     translateNow(currentText, next, replacementRequestFor(currentText));
   }
 
   async function toggleFavorite() {
-    if (!result?.historyId) return;
-    const historyId = result.historyId;
-    const next = !favorite;
+    if (!result?.historyId || !hasVisibleTranslation || controlsBusy) return;
+    const savesDirtyDraft = editMode && editDirty;
+    const activeResult = savesDirtyDraft ? await saveEditedTranslation() : result;
+    if (!activeResult?.historyId) return;
+    const historyId = activeResult.historyId;
+    const next = !(savesDirtyDraft ? activeResult.isFavorite : favorite);
     setFavorite(next);
     if (next) { setStarPop(true); window.setTimeout(() => setStarPop(false), 240); }
     const rollback = await favoriteControllerRef.current.mutate(
@@ -421,8 +582,8 @@ export default function Popup() {
   }
 
   function copy() {
-    if (!result) return;
-    api.copy(result.text).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); });
+    if (!result || !hasVisibleTranslation || controlsBusy) return;
+    api.copy(visibleTranslation).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); });
   }
 
   const canReplace = status === "result"
@@ -430,7 +591,9 @@ export default function Popup() {
     && replaceContextRef.current !== null
     && replaceRequestId === replaceContextRef.current.requestId
     && source === replaceContextRef.current.sourceText
-    && replaceState === "idle";
+    && replaceState === "idle"
+    && hasVisibleTranslation
+    && !controlsBusy;
 
   async function replaceSelection() {
     const context = replaceContextRef.current;
@@ -441,7 +604,7 @@ export default function Popup() {
     setReplaceState("pending");
     setReplaceError(null);
     try {
-      await api.replacePopupTranslation(context.requestId, context.sourceText, result.text);
+      await api.replacePopupTranslation(context.requestId, context.sourceText, visibleTranslation);
       if (attempt === replaceAttemptRef.current) setReplaceState("done");
     } catch (e) {
       if (attempt !== replaceAttemptRef.current) return;
@@ -456,6 +619,7 @@ export default function Popup() {
   }
 
   const fontSize = settings?.fontSize ?? 21;
+  const availableEngines = (settings?.engines ?? []).filter((id) => KNOWN_ENGINES.has(id));
   const visibleBoxHeight = expanded && maxCardHeight !== null ? Math.min(box.h, maxCardHeight) : box.h;
 
   // Морфинг пилюля→карточка — только на первом раскрытии сессии, дальше это обычный resize.
@@ -486,6 +650,45 @@ export default function Popup() {
 
   if (soloToast) return <div style={{ padding: frameMargin }} className="h-full w-full">{toastNode}</div>;
 
+  const translationEditor = editMode && result && (
+    <div className="popup-edit-box">
+      <textarea
+        ref={editRef}
+        aria-label="Редактировать перевод"
+        value={draft}
+        rows={3}
+        disabled={controlsBusy || replaceState === "pending"}
+        className="field popup-edit-textarea"
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setCopied(false);
+          setEditError(null);
+          if (editSaveState === "error") setEditSaveState("idle");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.ctrlKey) {
+            e.preventDefault();
+            void saveEditedTranslation();
+          }
+        }}
+      />
+      <div className="popup-edit-controls">
+        <span className="text-[11px] text-ink-3">Ctrl+Enter — готово</span>
+        <span className="flex-1" />
+        <button type="button" onClick={cancelEdit} disabled={controlsBusy || replaceState === "pending"}>Отменить</button>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => { void saveEditedTranslation(); }}
+          disabled={!hasVisibleTranslation || controlsBusy || replaceState === "pending"}
+        >
+          {editSaveState === "saving" ? "Сохраняем…" : "Готово"}
+        </button>
+      </div>
+      {editError && <div className="popup-inline-error" role="alert">{editError}</div>}
+    </div>
+  );
+
   // Действия переносятся целыми группами: на узкой рабочей области ни одна кнопка не обрезается.
   const actions = (
     <div className="popup-footer">
@@ -495,7 +698,7 @@ export default function Popup() {
         size="md"
         disabled={!canReplace}
         aria-label="Заменить"
-        title={result ? `Заменить на «${result.text}»` : "Дождитесь результата перевода"}
+        title={result && hasVisibleTranslation ? `Заменить на «${visibleTranslation}»` : "Дождитесь непустого результата перевода"}
         onClick={replaceSelection}
       >
         {replaceState === "pending"
@@ -512,9 +715,16 @@ export default function Popup() {
         label={copied ? "Скопировано" : "Копировать"}
         size={36}
         onClick={copy}
+        disabled={!hasVisibleTranslation || controlsBusy}
       />
       {!result.wordMode && (
-        <IconButton icon="speaker" label="Озвучить" size={36} onClick={() => speak(result.text, result.target)} />
+        <IconButton
+          icon="speaker"
+          label="Озвучить"
+          size={36}
+          onClick={() => speak(visibleTranslation, result.target)}
+          disabled={!hasVisibleTranslation || controlsBusy}
+        />
       )}
       <IconButton
         icon="star"
@@ -524,7 +734,7 @@ export default function Popup() {
         active={favorite}
         className={starPop ? "star-pop" : ""}
         onClick={toggleFavorite}
-        disabled={!result.historyId}
+        disabled={!result.historyId || !hasVisibleTranslation || controlsBusy}
       />
       </>)}
       </div>
@@ -577,6 +787,7 @@ export default function Popup() {
                 className="text-[12px] font-semibold tracking-[0.07em] text-water"
                 onClick={switchTarget}
                 title="Сменить целевой язык"
+                disabled={controlsBusy || editMode || replaceState === "pending"}
               >
                 {target.toUpperCase()}
               </button>
@@ -594,13 +805,25 @@ export default function Popup() {
                 >
                   {status === "loading" && <span className="text-[12px] text-ink-3">переводим…</span>}
                   {status === "error" && <span className="text-[12px] text-err">не удалось</span>}
-                  {status === "result" && result && (
-                    <Badge tone={result.fallbackFrom ? "sand" : "neutral"} title={result.fallbackFrom ?? undefined}>
+                  {status === "result" && result && (<>
+                    <button
+                      ref={engineButtonRef}
+                      type="button"
+                      className={`badge popup-engine-button ${result.fallbackFrom ? "sand" : ""}`}
+                      title={result.fallbackFrom ?? "Выбрать движок перевода"}
+                      aria-label="Выбрать движок перевода"
+                      aria-haspopup="menu"
+                      aria-expanded={engineMenuOpen}
+                      disabled={controlsBusy || editMode || replaceState === "pending"}
+                      onClick={toggleEngineMenu}
+                    >
+                      <span className="badge-dot" />
                       {engineLabel(result)}
-                    </Badge>
-                  )}
+                      <Icon name="chevron" size={10} className={`chevron ${engineMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                  </>)}
                   <div className="flex-1" />
-                  <div className="flex gap-1.5">
+                  <div className="flex shrink-0 gap-1.5">
                     <IconButton icon="pin" label="Закрепить" active={pinned} onClick={() => setPinned((p) => !p)} />
                     <IconButton icon="expand" label="Открыть в окне" onClick={() => api.openMain(currentText || undefined)} />
                     <IconButton icon="close" label="Закрыть (Esc)" onClick={closeAnimated} />
@@ -609,6 +832,43 @@ export default function Popup() {
               )}
             </AnimatePresence>
           </div>
+
+          <AnimatePresence initial={false}>
+            {expanded && engineMenuOpen && status === "result" && result && (
+              <motion.div
+                key="engine-menu"
+                className="popup-engine-menu"
+                role="menu"
+                aria-label="Движок перевода"
+                variants={fx(3, 2)}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+              >
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selectedEngine === undefined}
+                  className={selectedEngine === undefined ? "active" : ""}
+                  onClick={() => chooseEngine(undefined)}
+                >
+                  Автоматически
+                </button>
+                {availableEngines.map((engine) => (
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selectedEngine === engine}
+                    className={selectedEngine === engine ? "active" : ""}
+                    key={engine}
+                    onClick={() => chooseEngine(engine)}
+                  >
+                    {engineName(engine)}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {expanded && (
             <div className="flex min-h-0 flex-1 flex-col gap-[13px]" aria-live="polite">
@@ -621,6 +881,7 @@ export default function Popup() {
                     value={input}
                     onChange={(e) => onInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); window.clearTimeout(debounce.current); translateNow(input); } }}
+                    disabled={controlsBusy || editMode || replaceState === "pending"}
                     placeholder="Введите текст для перевода…"
                     rows={3}
                     className="field w-full resize-none py-2.5 leading-relaxed"
@@ -635,6 +896,8 @@ export default function Popup() {
               )}
 
               {clipNote && <div className="px-1 text-[12px] text-warn">Буфер обмена содержал не текст и был заменён.</div>}
+              {enginePending && <div className="px-1 text-[12px] text-ink-3" role="status">Переводим через выбранный движок…</div>}
+              {engineError && <div className="popup-inline-error" role="alert">{engineError} Выберите другой движок или повторите.</div>}
 
               <div style={{ position: "relative" }}>
                 <AnimatePresence mode="popLayout" initial={false}>
@@ -673,7 +936,20 @@ export default function Popup() {
                               <span className="select-text text-[26px] font-semibold tracking-[-0.025em]">{currentText.trim()}</span>
                               <IconButton icon="speaker" label="Озвучить оригинал" size={28} onClick={() => speak(currentText, result.detected)} />
                             </div>
-                            <span className="select-text text-[20px] font-semibold tracking-[-0.01em] text-water">{result.text}</span>
+                            {editMode ? translationEditor : (
+                              <div className="flex items-start gap-2">
+                                <span className="select-text min-w-0 flex-1 text-[20px] font-semibold tracking-[-0.01em] text-water">{result.text}</span>
+                                <button
+                                  type="button"
+                                  className="popup-edit-trigger"
+                                  aria-label="Редактировать перевод"
+                                  onClick={beginEdit}
+                                  disabled={enginePending || replaceState === "pending"}
+                                >
+                                  Редактировать
+                                </button>
+                              </div>
+                            )}
                           </div>
                           {result.alternatives.length > 0 && (
                             <div className="flex flex-col gap-[9px] border-t border-line px-1 pt-3">
@@ -708,12 +984,25 @@ export default function Popup() {
                               </motion.div>
                             )}
                           </AnimatePresence>
-                          <div
-                            className="select-text"
-                            style={{ fontSize, lineHeight: 1.5, letterSpacing: "-0.005em", maxHeight: 300, overflow: "auto", textWrap: "pretty" }}
-                          >
-                            {result.text}
-                          </div>
+                          {editMode ? translationEditor : (
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className="select-text min-w-0 flex-1"
+                                style={{ fontSize, lineHeight: 1.5, letterSpacing: "-0.005em", maxHeight: 300, overflow: "auto", textWrap: "pretty" }}
+                              >
+                                {result.text}
+                              </div>
+                              <button
+                                type="button"
+                                className="popup-edit-trigger"
+                                aria-label="Редактировать перевод"
+                                onClick={beginEdit}
+                                disabled={enginePending || replaceState === "pending"}
+                              >
+                                Редактировать
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </motion.div>

@@ -224,6 +224,134 @@ html[data-theme="dark"] {
     line-height: 1.45;
   }
 
+  .popup-inline-error {
+    padding: 0 4px;
+    color: var(--err);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .popup-engine-button {
+    min-width: 0;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+
+  .popup-engine-button:hover:not(:disabled) {
+    background: var(--tile-2);
+    border-color: var(--line);
+  }
+
+  .popup-engine-button:disabled {
+    opacity: 0.62;
+  }
+
+  .popup-engine-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 5px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-tile);
+    background: var(--tile);
+  }
+
+  .popup-engine-menu button,
+  .popup-edit-controls button,
+  .popup-edit-trigger {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-2);
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+
+  .popup-engine-menu button {
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .popup-engine-menu button:hover,
+  .popup-engine-menu button.active {
+    background: var(--card);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  .popup-edit-trigger {
+    flex-shrink: 0;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+
+  .popup-edit-trigger:hover:not(:disabled) {
+    background: var(--tile);
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
+
+  .popup-edit-trigger:disabled {
+    opacity: 0.55;
+  }
+
+  .popup-edit-box {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .popup-edit-textarea {
+    width: 100%;
+    height: auto;
+    min-height: 88px;
+    max-height: 220px;
+    resize: vertical;
+    padding: 10px 12px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .popup-edit-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .popup-edit-controls button {
+    min-height: 30px;
+    padding: 0 11px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .popup-edit-controls button:hover:not(:disabled) {
+    background: var(--tile);
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
+
+  .popup-edit-controls button.primary {
+    background: var(--water);
+    border-color: transparent;
+    color: var(--on-water);
+  }
+
+  .popup-edit-controls button.primary:hover:not(:disabled) {
+    background: var(--water-deep);
+    border-color: transparent;
+    color: var(--on-water);
+  }
+
+  .popup-edit-controls button:disabled {
+    opacity: 0.55;
+  }
+
   /* Плитка внутри панели. */
   .tile {
     background: var(--tile);
@@ -554,7 +682,11 @@ html[data-theme="dark"] {
   .grip:focus-visible,
   .hkfield:focus-visible,
   .toggle-track:focus-visible,
-  .row:focus-visible {
+  .row:focus-visible,
+  .popup-engine-button:focus-visible,
+  .popup-engine-menu button:focus-visible,
+  .popup-edit-trigger:focus-visible,
+  .popup-edit-controls button:focus-visible {
     outline: none;
     border-color: var(--water-line);
     box-shadow: 0 0 0 3px var(--water-soft);

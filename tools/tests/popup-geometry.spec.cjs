@@ -11,7 +11,7 @@ const settings = {
   hotkeyWindow: "Ctrl+Alt+U",
   primaryLang: "ru",
   secondaryLang: "en",
-  engines: ["google"],
+  engines: ["google", "bing", "mymemory"],
   theme: "dark",
   uiLang: "ru",
   historyEnabled: true,
@@ -54,6 +54,11 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
       sizes: [],
       positions: [],
       translationCalls: [],
+      translationPlan: [],
+      updateTranslationCalls: [],
+      updateTranslationPlan: [],
+      copyCalls: [],
+      speakCalls: [],
       replaceCalls: [],
       replacePlan: [],
       favoriteCalls: [],
@@ -86,7 +91,10 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
       async invoke(cmd, args = {}) {
         if (cmd === "settings_get") return settings;
         if (cmd === "translate_text") {
-          state.translationCalls.push({ text: args.text, target: args.target || null });
+          state.translationCalls.push({ text: args.text, target: args.target || null, engine: args.engine || null });
+          const plan = state.translationPlan.shift() || {};
+          if (plan.delay) await new Promise((resolve) => setTimeout(resolve, plan.delay));
+          if (plan.fail) throw new Error(plan.message || "translation failed");
           if (args.text === "slow") await new Promise((resolve) => setTimeout(resolve, 250));
           if (args.text === "slow error") {
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -96,7 +104,7 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
             text: longText,
             detected: args.target === "en" ? "ru" : "en",
             target: args.target || "ru",
-            engine: "google",
+            engine: args.engine || "google",
             alternatives: [],
             fallbackFrom: null,
             historyId: 2,
@@ -104,6 +112,22 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
             isFavorite: false,
             requestId: null,
           };
+        }
+        if (cmd === "update_translation_text") {
+          state.updateTranslationCalls.push({
+            historyId: args.historyId,
+            sourceText: args.sourceText,
+            expectedText: args.expectedText,
+            text: args.text,
+          });
+          const plan = state.updateTranslationPlan.shift() || {};
+          if (plan.delay) await new Promise((resolve) => setTimeout(resolve, plan.delay));
+          if (plan.fail) throw new Error(plan.message || "translation save failed");
+          return plan.result === undefined ? true : plan.result;
+        }
+        if (cmd === "copy_text") {
+          state.copyCalls.push(args.text);
+          return null;
         }
         if (cmd === "replace_popup_translation") {
           state.replaceCalls.push({
@@ -122,6 +146,11 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
           if (plan.delay) await new Promise((resolve) => setTimeout(resolve, plan.delay));
           if (plan.fail) throw new Error("favorite write failed");
           state.persistedFavorite = args.favorite;
+          return null;
+        }
+        if (cmd === "open_main") {
+          state.openMainCalls = state.openMainCalls || [];
+          state.openMainCalls.push(args.text || null);
           return null;
         }
         if (cmd === "plugin:event|listen") {
@@ -158,6 +187,11 @@ async function installTauriMock(page, work = { x: 0, y: 0, width: 900, height: 7
         }
         return null;
       },
+    };
+    const speech = window.speechSynthesis;
+    speech.cancel = () => {};
+    speech.speak = (utterance) => {
+      window.__popupMock.speakCalls.push({ text: utterance.text, lang: utterance.lang });
     };
   }, { settings, longText, work });
 }
@@ -362,7 +396,7 @@ test("retrying a capture translation error preserves Replace for the same source
   await expect(page.getByRole("button", { name: "Заменить" })).toBeEnabled();
   await page.getByRole("button", { name: "Заменить" }).click();
   const state = await page.evaluate(() => window.__popupMock);
-  expect(state.translationCalls).toEqual([{ text: "captured retry", target: "ru" }]);
+  expect(state.translationCalls).toEqual([{ text: "captured retry", target: "ru", engine: null }]);
   expect(state.replaceCalls).toEqual([{ requestId: 62, sourceText: "captured retry", translatedText: longText }]);
 });
 
@@ -398,7 +432,7 @@ test("target switch preserves replacement for the captured source and uses the n
   await replace.click();
 
   const state = await page.evaluate(() => window.__popupMock);
-  expect(state.translationCalls).toEqual([{ text: "capture once", target: "en" }]);
+  expect(state.translationCalls).toEqual([{ text: "capture once", target: "en", engine: null }]);
   expect(state.replaceCalls).toEqual([{ requestId: 80, sourceText: "capture once", translatedText: longText }]);
 });
 
@@ -513,7 +547,7 @@ test("switching target cancels the pending edit debounce", async ({ page }) => {
   await page.waitForTimeout(750);
 
   const calls = await page.evaluate(() => window.__popupMock.translationCalls);
-  expect(calls).toEqual([{ text: "draft", target: "en" }]);
+  expect(calls).toEqual([{ text: "draft", target: "en", engine: null }]);
 });
 
 test("favorite writes stay ordered when the first write is slower", async ({ page }) => {
@@ -553,4 +587,280 @@ test("multiple favorite failures roll back to the last confirmed state", async (
   await expect(favorite).toHaveAttribute("aria-pressed", "false");
   const calls = await page.evaluate(() => window.__popupMock.favoriteCalls);
   expect(calls).toEqual([{ id: 1, favorite: true }, { id: 1, favorite: false }]);
+});
+
+test("editing exposes draft controls, cancel and Escape discard the draft", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "original result", requestId: 901 });
+
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  const editor = page.getByRole("textbox", { name: "Редактировать перевод" });
+  await expect(editor).toHaveValue("original result");
+  await editor.fill("draft text");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(os.tmpdir(), "utranslate-popup-edit-qa.png") });
+  const footerGeometry = await page.locator(".popup-footer").evaluate((footer) => {
+    const card = footer.closest(".pop").getBoundingClientRect();
+    return [...footer.querySelectorAll("button")].every((button) => {
+      const r = button.getBoundingClientRect();
+      return r.left >= card.left && r.right <= card.right && r.top >= card.top && r.bottom <= card.bottom
+        && r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight;
+    });
+  });
+  expect(footerGeometry).toBe(true);
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect(page.getByText("original result")).toBeVisible();
+  await expect(page.getByText("draft text")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await editor.fill("draft text");
+  await editor.press("Escape");
+  await expect(page.getByText("original result")).toBeVisible();
+  await expect(page.getByText("draft text")).toHaveCount(0);
+});
+
+test("draft is used exactly by Copy, Speak, and Replace before Done", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "captured source", translated: "server result", requestId: 902 });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  const editor = page.getByRole("textbox", { name: "Редактировать перевод" });
+  await editor.fill("draft exact\nsecond line");
+
+  await page.getByRole("button", { name: "Копировать" }).click();
+  await page.getByRole("button", { name: "Озвучить" }).click();
+  await page.getByRole("button", { name: "Заменить" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.copyCalls)).toEqual(["draft exact\nsecond line"]);
+  await expect.poll(() => page.evaluate(() => window.__popupMock.speakCalls)).toEqual([
+    { text: "draft exact\nsecond line", lang: "ru" },
+  ]);
+  await expect.poll(() => page.evaluate(() => window.__popupMock.replaceCalls)).toEqual([{
+    requestId: 902, sourceText: "captured source", translatedText: "draft exact\nsecond line",
+  }]);
+});
+
+test("Done persists an edited translation before saving its favorite state", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "old", requestId: 903 });
+  await page.evaluate(() => { window.__popupMock.updateTranslationPlan = [{ result: false }]; });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill("new saved text");
+  await page.getByRole("button", { name: "Готово" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.updateTranslationCalls)).toEqual([{
+    historyId: 41, sourceText: "source", expectedText: "old", text: "new saved text",
+  }]);
+  const favorite = page.getByRole("button", { name: "В избранное" });
+  await expect(favorite).toBeEnabled();
+  await favorite.click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.favoriteCalls)).toEqual([{ id: 41, favorite: true }]);
+});
+
+test("failed Done keeps the draft visible and does not lose the editing context", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "old", requestId: 904 });
+  await page.evaluate(() => { window.__popupMock.updateTranslationPlan = [{ fail: true, message: "save failed" }]; });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  const editor = page.getByRole("textbox", { name: "Редактировать перевод" });
+  await editor.fill("draft retained");
+  await page.getByRole("button", { name: "Готово" }).click();
+  await expect(page.getByRole("alert")).toContainText("save failed");
+  await expect(editor).toHaveValue("draft retained");
+});
+
+test("engine picker sends an explicit engine or automatic selection for the same source", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "same source", translated: "first result", requestId: 905 });
+
+  const picker = page.getByRole("button", { name: "Выбрать движок перевода" });
+  await picker.click();
+  const menu = page.getByRole("menu", { name: "Движок перевода" });
+  await expect(menu.getByRole("menuitemradio", { name: "Автоматически" })).toBeVisible();
+  await expect(menu.getByRole("menuitemradio", { name: "Google" })).toBeVisible();
+  await expect(menu.getByRole("menuitemradio", { name: "Bing" })).toBeVisible();
+  await expect(menu.getByRole("menuitemradio", { name: "MyMemory" })).toBeVisible();
+  await page.screenshot({ path: path.join(os.tmpdir(), "utranslate-popup-engine-menu-qa.png") });
+  await menu.getByRole("menuitemradio", { name: "Bing" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls)).toContainEqual({
+    text: "same source", target: "ru", engine: "bing",
+  });
+
+  await picker.click();
+  await menu.getByRole("menuitemradio", { name: "Автоматически" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls)).toContainEqual({
+    text: "same source", target: "ru", engine: null,
+  });
+  await page.getByRole("button", { name: "Открыть в окне" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.openMainCalls)).toEqual(["same source"]);
+});
+
+test("long editor keeps Done, Cancel, and footer actions reachable", async ({ page }) => {
+  await installTauriMock(page);
+  await page.setViewportSize({ width: 600, height: 360 });
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: longText, requestId: 906 });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  const editor = page.getByRole("textbox", { name: "Редактировать перевод" });
+  await editor.fill(Array.from({ length: 40 }, (_, i) => `edited line ${i + 1}`).join("\n"));
+  await expect(page.getByRole("button", { name: "Готово" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
+  const scroller = page.locator("[data-popup-scroll]");
+  await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(os.tmpdir(), "utranslate-popup-long-editor-qa.png") });
+  await expect(page.getByRole("button", { name: "Заменить" })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Копировать" })).toBeInViewport();
+  const footerGeometry = await page.locator(".popup-footer").evaluate((footer) => {
+    const card = footer.closest(".pop").getBoundingClientRect();
+    const buttons = [...footer.querySelectorAll("button")].map((button) => {
+      const r = button.getBoundingClientRect();
+      return r.left >= card.left && r.right <= card.right && r.top >= card.top && r.bottom <= card.bottom
+        && r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight;
+    });
+    return buttons;
+  });
+  expect(footerGeometry.every(Boolean)).toBe(true);
+});
+
+test("editor accepts a long valid translation without truncating the saved text", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "old", requestId: 907 });
+  const longDraft = "x".repeat(5201);
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill(longDraft);
+  await page.getByRole("button", { name: "Готово" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.updateTranslationCalls)).toHaveLength(1);
+  await expect.poll(() => page.evaluate(() => window.__popupMock.updateTranslationCalls[0].text.length)).toBe(5201);
+});
+
+test("a new source session resets the previous manual engine choice", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "first source", translated: "first", requestId: 908 });
+  await page.getByRole("button", { name: "Выбрать движок перевода" }).click();
+  await page.getByRole("menu", { name: "Движок перевода" }).getByRole("menuitemradio", { name: "Bing" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1).engine)).toBe("bing");
+
+  await page.evaluate(() => window.__popupMock.emit("popup:show", {
+    text: "", target: "ru", detected: null, clipboardReplaced: false, requestId: 909, canReplace: false,
+  }));
+  const input = page.getByPlaceholder("Введите текст для перевода…");
+  await input.fill("second source");
+  await input.press("Enter");
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1))).toEqual({
+    text: "second source", target: null, engine: null,
+  });
+  await page.waitForTimeout(350);
+  await page.getByRole("button", { name: "Выбрать движок перевода" }).click();
+  await page.getByRole("menu", { name: "Движок перевода" }).getByRole("menuitemradio", { name: "Автоматически" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1))).toEqual({
+    text: "second source", target: "ru", engine: null,
+  });
+});
+
+test("editing the same input session resets a previous manual engine to automatic", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await page.waitForFunction(() => Boolean(window.__utDemo));
+  await page.evaluate(() => window.__popupMock.emit("popup:show", {
+    text: "", target: "ru", detected: null, clipboardReplaced: false, requestId: 917, canReplace: false,
+  }));
+  const input = page.getByPlaceholder("Введите текст для перевода…");
+  await expect(input).toBeVisible();
+  await input.fill("first");
+  await input.press("Enter");
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1))).toEqual({ text: "first", target: null, engine: null });
+  await page.getByRole("button", { name: "Выбрать движок перевода" }).click();
+  await page.getByRole("menu", { name: "Движок перевода" }).getByRole("menuitemradio", { name: "Bing" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1).engine)).toBe("bing");
+  await input.fill("second");
+  await input.press("Enter");
+  await expect.poll(() => page.evaluate(() => window.__popupMock.translationCalls.at(-1))).toEqual({ text: "second", target: null, engine: null });
+});
+
+test("blank draft disables every translation action", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "result", requestId: 910 });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill("   \n  ");
+  for (const name of ["Заменить", "Копировать", "Озвучить", "В избранное"]) {
+    await expect(page.getByRole("button", { name })).toBeDisabled();
+  }
+});
+
+test("dirty favorite saves the exact draft before toggling favorite", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "source", translated: "result", requestId: 911 });
+  await page.evaluate(() => { window.__popupMock.updateTranslationPlan = [{ result: false }]; });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill("favorite draft");
+  await page.getByRole("button", { name: "В избранное" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.updateTranslationCalls)).toEqual([{
+    historyId: 41, sourceText: "source", expectedText: "result", text: "favorite draft",
+  }]);
+  await expect.poll(() => page.evaluate(() => window.__popupMock.favoriteCalls)).toEqual([{ id: 41, favorite: true }]);
+});
+
+test("late manual engine response cannot replace a newer popup session", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "old source", translated: "old result", requestId: 912 });
+  await page.evaluate(() => { window.__popupMock.translationPlan = [{ delay: 400 }]; });
+  await page.getByRole("button", { name: "Выбрать движок перевода" }).click();
+  await page.getByRole("menu", { name: "Движок перевода" }).getByRole("menuitemradio", { name: "Bing" }).click();
+  await page.evaluate(() => window.__popupMock.emit("popup:show", {
+    text: "new source", target: "ru", detected: "en", clipboardReplaced: false, requestId: 913, canReplace: true,
+  }));
+  await page.evaluate(() => window.__popupMock.emit("popup:result", {
+    text: "new result", detected: "en", target: "ru", engine: "google", alternatives: [], fallbackFrom: null,
+    historyId: 99, wordMode: false, isFavorite: false, requestId: 913,
+  }));
+  await page.waitForTimeout(500);
+  await expect(page.getByText("new result")).toBeVisible();
+  await expect(page.getByText("old result")).toHaveCount(0);
+});
+
+test("manual engine failure preserves the saved edit and replacement context", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "captured", translated: "old", requestId: 914 });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill("edited");
+  await page.getByRole("button", { name: "Готово" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.updateTranslationCalls)).toHaveLength(1);
+  await page.evaluate(() => { window.__popupMock.translationPlan = [{ fail: true, message: "provider down" }]; });
+  await page.getByRole("button", { name: "Выбрать движок перевода" }).click();
+  await page.getByRole("menu", { name: "Движок перевода" }).getByRole("menuitemradio", { name: "Bing" }).click();
+  await expect(page.getByText("edited")).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("provider down");
+  await page.getByRole("button", { name: "Заменить" }).click();
+  await expect.poll(() => page.evaluate(() => window.__popupMock.replaceCalls.at(-1))).toEqual({
+    requestId: 914, sourceText: "captured", translatedText: "edited",
+  });
+});
+
+test("late CAS save cannot overwrite a newer popup result", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "old source", translated: "old", requestId: 915 });
+  await page.evaluate(() => { window.__popupMock.updateTranslationPlan = [{ delay: 400, result: true }]; });
+  await page.getByRole("button", { name: "Редактировать перевод" }).click();
+  await page.getByRole("textbox", { name: "Редактировать перевод" }).fill("late edit");
+  await page.getByRole("button", { name: "Готово" }).click();
+  await page.evaluate(() => window.__popupMock.emit("popup:show", {
+    text: "new source", target: "ru", detected: "en", clipboardReplaced: false, requestId: 916, canReplace: true,
+  }));
+  await page.evaluate(() => window.__popupMock.emit("popup:result", {
+    text: "new result", detected: "en", target: "ru", engine: "google", alternatives: [], fallbackFrom: null,
+    historyId: 916, wordMode: false, isFavorite: false, requestId: 916,
+  }));
+  await page.waitForTimeout(500);
+  await expect(page.getByText("new result")).toBeVisible();
+  await expect(page.getByRole("button", { name: "В избранное" })).toHaveAttribute("aria-pressed", "false");
 });
