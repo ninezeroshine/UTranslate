@@ -4,6 +4,12 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+pub const KNOWN_ENGINES: [&str; 3] = ["google", "bing", "mymemory"];
+
+pub fn is_known_engine(engine: &str) -> bool {
+    KNOWN_ENGINES.contains(&engine)
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
@@ -83,5 +89,13 @@ mod tests {
         settings.secondary_lang = "en".into();
         settings.engines.clear();
         assert!(settings.validate().unwrap_err().contains("хотя бы один"));
+    }
+
+    #[test]
+    fn knows_supported_translation_engines() {
+        for engine in KNOWN_ENGINES {
+            assert!(is_known_engine(engine));
+        }
+        assert!(!is_known_engine("deepl"));
     }
 }

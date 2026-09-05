@@ -2,7 +2,7 @@
 
 use std::{path::Path, sync::Mutex};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 pub struct Db(Mutex<Connection>);
@@ -111,6 +111,29 @@ impl Db {
         Ok(())
     }
 
+    /// Compare-and-swap текста перевода. Остальные поля записи, включая избранное, не меняются.
+    pub fn update_result_text(
+        &self,
+        id: i64,
+        source: &str,
+        expected: &str,
+        result: &str,
+    ) -> rusqlite::Result<Option<bool>> {
+        let mut conn = self.0.lock().unwrap();
+        let tx = conn.transaction()?;
+        let favorite = tx
+            .query_row(
+                "UPDATE translations SET result_text = ?4
+                 WHERE id = ?1 AND source_text = ?2 AND result_text = ?3
+                 RETURNING is_favorite",
+                params![id, source, expected, result],
+                |row| Ok(row.get::<_, i32>(0)? != 0),
+            )
+            .optional()?;
+        tx.commit()?;
+        Ok(favorite)
+    }
+
     pub fn delete(&self, id: i64) -> rusqlite::Result<()> {
         self.0
             .lock()
@@ -172,6 +195,36 @@ mod tests {
         assert!(
             favorite,
             "upsert должен вернуть сохранённое состояние избранного"
+        );
+        let before = db.list("", false, 10).unwrap().remove(0);
+        assert_eq!(
+            db.update_result_text(a, "other source", "привет снова", "чужой текст")
+                .unwrap(),
+            None,
+            "другая исходная строка не должна пройти CAS"
+        );
+        assert_eq!(
+            db.update_result_text(a, "hello", "устаревший перевод", "чужой текст")
+                .unwrap(),
+            None,
+            "устаревшая версия перевода не должна пройти CAS"
+        );
+        assert_eq!(
+            db.update_result_text(a, "hello", "привет снова", "готовый перевод")
+                .unwrap(),
+            Some(true)
+        );
+        let after = db.list("", false, 10).unwrap().remove(0);
+        assert_eq!(after.result_text, "готовый перевод");
+        assert_eq!(after.source_text, before.source_text);
+        assert_eq!(after.source_lang, before.source_lang);
+        assert_eq!(after.target_lang, before.target_lang);
+        assert_eq!(after.engine, before.engine);
+        assert_eq!(after.mode, before.mode);
+        assert_eq!(after.created_at, before.created_at);
+        assert!(
+            after.is_favorite,
+            "CAS должен сохранить состояние избранного"
         );
         db.clear().unwrap();
         assert_eq!(

@@ -46,8 +46,11 @@ export type UpdateInfo = { version: string; notes: string | null; date: string |
 export type HotkeyStatus = { field: "hotkeyPopup" | "hotkeyReplace" | "hotkeyWindow"; error: string | null };
 
 export const api = {
-  translate: (text: string, target?: string) => invoke<TranslateResult>("translate_text", { text, target }),
+  translate: (text: string, target?: string, engine?: string) =>
+    invoke<TranslateResult>("translate_text", { text, target, engine }),
   copy: (text: string) => invoke<void>("copy_text", { text }),
+  updateTranslationText: (historyId: number, sourceText: string, expectedText: string, text: string) =>
+    invoke<boolean>("update_translation_text", { historyId, sourceText, expectedText, text }),
   replacePopupTranslation: (requestId: number, sourceText: string, translatedText: string) =>
     invoke<void>("replace_popup_translation", { requestId, sourceText, translatedText }),
   openMain: (text?: string) => invoke<void>("open_main", { text }),

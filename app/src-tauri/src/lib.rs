@@ -426,7 +426,7 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                 eprintln!("попап: {e}");
             }
             tauri::async_runtime::spawn(async move {
-                match do_translate(&app, &text, Some(target), "popup").await {
+                match do_translate(&app, &text, Some(target), None, "popup").await {
                     Ok(mut r) if popup_request_is_current(request_id) => {
                         r.request_id = Some(request_id);
                         let _ = app.emit_to("popup", "popup:result", r);
@@ -462,7 +462,8 @@ fn run_action(app: AppHandle, action: Action, s: Settings, request_id: u64) {
                 );
                 return;
             };
-            let result = tauri::async_runtime::block_on(do_translate(&app, &text, None, "replace"));
+            let result =
+                tauri::async_runtime::block_on(do_translate(&app, &text, None, None, "replace"));
             match result {
                 // Пробелы и переносы по краям выделения сохраняем: движки их отбрасывают.
                 Ok(r) => {
@@ -608,23 +609,103 @@ mod toast_tests {
     }
 }
 
+fn translation_order(settings: &Settings, engine: Option<&str>) -> Result<Vec<String>, String> {
+    let Some(engine) = engine else {
+        return Ok(settings.engines.clone());
+    };
+    if !settings::is_known_engine(engine) {
+        return Err(format!("Неизвестный движок перевода: {engine}"));
+    }
+    if !settings.engines.iter().any(|enabled| enabled == engine) {
+        return Err(format!("Движок перевода отключён в настройках: {engine}"));
+    }
+    Ok(vec![engine.to_string()])
+}
+
+fn should_auto_swap(
+    detected: &str,
+    target: &str,
+    manual_engine: bool,
+    explicit_target: bool,
+) -> bool {
+    detected == target && !(manual_engine && explicit_target)
+}
+
+fn validate_translation_edit(text: &str) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("Перевод пуст; сохранение отменено".into());
+    }
+    if text.len() > MAX_POPUP_REPLACEMENT_BYTES {
+        return Err("Перевод слишком большой для безопасного сохранения".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod translation_policy_tests {
+    use super::{
+        should_auto_swap, translation_order, validate_translation_edit, MAX_POPUP_REPLACEMENT_BYTES,
+    };
+    use crate::settings::Settings;
+
+    #[test]
+    fn manual_engine_is_single_and_must_be_known_and_enabled() {
+        let mut settings = Settings::default();
+        assert_eq!(
+            translation_order(&settings, None).unwrap(),
+            settings.engines
+        );
+        assert_eq!(
+            translation_order(&settings, Some("bing")).unwrap(),
+            vec!["bing".to_string()]
+        );
+
+        assert!(translation_order(&settings, Some("deepl"))
+            .unwrap_err()
+            .contains("Неизвестный"));
+        settings.engines.retain(|engine| engine != "bing");
+        assert!(translation_order(&settings, Some("bing"))
+            .unwrap_err()
+            .contains("отключён"));
+    }
+
+    #[test]
+    fn manual_explicit_target_is_never_auto_swapped() {
+        assert!(!should_auto_swap("ru", "ru", true, true));
+        assert!(should_auto_swap("ru", "ru", true, false));
+        assert!(should_auto_swap("ru", "ru", false, true));
+        assert!(!should_auto_swap("en", "ru", true, false));
+    }
+
+    #[test]
+    fn edited_translation_uses_popup_replacement_size_policy() {
+        assert!(validate_translation_edit(" \n\t").is_err());
+        assert!(validate_translation_edit("готово").is_ok());
+        assert!(validate_translation_edit(&"x".repeat(MAX_POPUP_REPLACEMENT_BYTES + 1)).is_err());
+    }
+}
+
 /// Перевод с авто-swap: если движок определил, что текст уже на целевом языке, переводим на запасной.
 async fn do_translate(
     app: &AppHandle,
     text: &str,
     target: Option<String>,
+    engine: Option<String>,
     mode: &str,
 ) -> Result<TranslateResult, String> {
     let st = app.state::<AppState>();
     let s = st.settings.lock().unwrap().clone();
     let hint = engines::guess_lang(text);
+    let explicit_target = target.is_some();
+    let manual_engine = engine.is_some();
+    let order = translation_order(&s, engine.as_deref())?;
     let target =
         target.unwrap_or_else(|| engines::pick_target(hint, &s.primary_lang, &s.secondary_lang));
     let mut t = st
         .engines
-        .translate_long(text, &target, hint, &s.engines)
+        .translate_long(text, &target, hint, &order)
         .await?;
-    if t.detected == target {
+    if should_auto_swap(&t.detected, &target, manual_engine, explicit_target) {
         let other = if target == s.primary_lang {
             s.secondary_lang.clone()
         } else {
@@ -632,7 +713,7 @@ async fn do_translate(
         };
         t = st
             .engines
-            .translate_long(text, &other, Some(&target), &s.engines)
+            .translate_long(text, &other, Some(&target), &order)
             .await?;
     }
     let (history_id, is_favorite) = if s.history_enabled {
@@ -667,16 +748,33 @@ async fn translate_text(
     app: AppHandle,
     text: String,
     target: Option<String>,
+    engine: Option<String>,
 ) -> Result<TranslateResult, String> {
     if text.trim().is_empty() {
         return Err("пустой текст".into());
     }
-    do_translate(&app, &text, target, "window").await
+    do_translate(&app, &text, target, engine, "window").await
 }
 
 #[tauri::command]
 fn copy_text(app: AppHandle, text: String) -> Result<(), String> {
     app.clipboard().write_text(text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_translation_text(
+    state: State<AppState>,
+    history_id: i64,
+    source_text: String,
+    expected_text: String,
+    text: String,
+) -> Result<bool, String> {
+    validate_translation_edit(&text)?;
+    state
+        .db
+        .update_result_text(history_id, &source_text, &expected_text, &text)
+        .map_err(|error| format!("Не удалось сохранить перевод: {error}"))?
+        .ok_or_else(|| "Перевод устарел или запись истории не найдена".to_string())
 }
 
 #[tauri::command]
@@ -1035,6 +1133,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             translate_text,
             copy_text,
+            update_translation_text,
             replace_popup_translation,
             open_main,
             history_list,

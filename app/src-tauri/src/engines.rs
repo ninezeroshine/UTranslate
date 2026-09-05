@@ -402,8 +402,14 @@ mod tests {
     fn cache_key_tracks_provider_preference_and_source_hint() {
         let google = vec!["google".to_string(), "bing".to_string()];
         let bing = vec!["bing".to_string(), "google".to_string()];
+        let google_only = vec!["google".to_string()];
         let base = cache_key("hello", "ru", Some("en"), &google);
         assert_ne!(base, cache_key("hello", "ru", Some("en"), &bing));
+        assert_ne!(
+            base,
+            cache_key("hello", "ru", Some("en"), &google_only),
+            "ручной выбор движка не должен читать кэш автоматической цепочки"
+        );
         assert_ne!(base, cache_key("hello", "ru", Some("de"), &google));
     }
 }
