@@ -90,6 +90,8 @@ Updates itself: checks 15 seconds after launch and every 6 hours; when it finds 
 
 In the card, click **“Replace”** to put the displayed translation into the original selection without translating again or pressing another hotkey. Replacement only runs while the original window, field, and selection are still available; otherwise it is cancelled.
 
+Click **“Edit translation”** to revise the result in the popup. **“Done”** saves the edited text to history; **“Cancel”** or `Esc` discard it. `Enter` inserts a new line and `Ctrl+Enter` finishes editing. Copy, speak, and replace use the current draft. The engine badge lets you choose Google, Bing, MyMemory, or **“Automatic”** for this source and target only.
+
 **Replace text in a field.** Select text → `Ctrl+Alt+R` → the selection is replaced with the translation if the window and selection do not change while the request is pending. A changed context cancels the paste. Supported clipboard formats are preserved, and ambiguous captures are cancelled without discarding the original contents; a "Replaced: …" capsule appears next to the cursor for 2 seconds.
 
 <div align="center">
