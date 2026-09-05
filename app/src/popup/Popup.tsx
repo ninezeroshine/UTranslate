@@ -2,14 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { currentMonitor, LogicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { listen, win } from "../lib/tauri";
 import { AnimatePresence, motion, useReducedMotion, type Transition, type Variants } from "motion/react";
-import { api, engineLabel, engineName, errorHint, errorText, posName, speak, type Settings, type TranslateResult } from "../lib/api";
+import { api, engineName, errorHint, errorText, posName, speak, type Settings, type TranslateResult } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { applyTheme } from "../lib/theme";
-import { FavoriteController } from "../main/latestRequest";
+import { FavoriteController, LatestRequest } from "../main/latestRequest";
 import { IconButton, Pill } from "../ui";
+import { EngineMenu } from "./EngineMenu";
+import { PopupFooter } from "./PopupFooter";
+import { PopupHeader } from "./PopupHeader";
+import { SourceBlock } from "./SourceBlock";
+import { TranslationEditor } from "./TranslationEditor";
+import type { PopupOrigin, PopupStatus as Status, ReplaceState } from "./types";
 
-type Status = "recognizing" | "loading" | "result" | "error" | "input";
-type PopupOrigin = "selection" | "screen";
 type Show = {
   text: string;
   target: string;
@@ -25,7 +29,6 @@ type PopupError = { message: string; requestId: number };
 type ScreenRecognized = { requestId: number; text: string; target: string; detected: string | null };
 type CaptureLifecycle = { requestId: number };
 type ReplaceContext = { requestId: number; sourceText: string };
-type ReplaceState = "idle" | "pending" | "done" | "failed";
 type ReplaceFocusGuard = {
   attempt: number;
   requestId: number;
@@ -127,8 +130,14 @@ export default function Popup() {
   const editRef = useRef<HTMLTextAreaElement>(null);
   const engineButtonRef = useRef<HTMLButtonElement>(null);
   const debounce = useRef<number | undefined>(undefined);
-  const localRequestRef = useRef(0);
-  const editRequestRef = useRef(0);
+  // Четыре независимых «побеждает последний»: перевод из попапа, сохранение правки,
+  // попытка замены выделения и запуск выбора области экрана.
+  const requests = useRef({
+    local: new LatestRequest(),
+    edit: new LatestRequest(),
+    replace: new LatestRequest(),
+    screen: new LatestRequest(),
+  }).current;
   const selectedEngineRef = useRef<string | undefined>(undefined);
   const backendRequestRef = useRef<number | null>(null);
   const statusRef = useRef<Status>(status);
@@ -140,9 +149,7 @@ export default function Popup() {
   const captureSuspendRef = useRef<number | null>(null);
   const captureWasVisibleRef = useRef(false);
   const capturePreviousStatusRef = useRef<Status>("input");
-  const screenActionRequestRef = useRef(0);
   const replaceContextRef = useRef<ReplaceContext | null>(null);
-  const replaceAttemptRef = useRef(0);
   const replacePendingRef = useRef(false);
   const replaceFocusGuardRef = useRef<ReplaceFocusGuard | null>(null);
   const favoriteControllerRef = useRef(new FavoriteController());
@@ -168,14 +175,14 @@ export default function Popup() {
 
   function hideNow() {
     window.clearTimeout(debounce.current);
-    localRequestRef.current += 1;
-    editRequestRef.current += 1;
+    requests.local.invalidate();
+    requests.edit.invalidate();
     backendRequestRef.current = null;
-    replaceAttemptRef.current += 1;
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
     hiddenRef.current = true;
-    screenActionRequestRef.current += 1;
+    requests.screen.invalidate();
     setScreenActionPending(false);
     setHidden(true);
     win?.hide();
@@ -183,13 +190,13 @@ export default function Popup() {
 
   function closeAnimated() {
     window.clearTimeout(debounce.current);
-    localRequestRef.current += 1;
-    editRequestRef.current += 1;
+    requests.local.invalidate();
+    requests.edit.invalidate();
     backendRequestRef.current = null;
-    replaceAttemptRef.current += 1;
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
-    screenActionRequestRef.current += 1;
+    requests.screen.invalidate();
     setScreenActionPending(false);
     setClosing(true);
   }
@@ -218,12 +225,12 @@ export default function Popup() {
     // Обычный поток сильнее тоста: таймер отменяется, пилюля пропадает сразу.
     window.clearTimeout(toastTimer.current);
     window.clearTimeout(debounce.current);
-    localRequestRef.current += 1;
-    editRequestRef.current += 1;
+    requests.local.invalidate();
+    requests.edit.invalidate();
     backendRequestRef.current = payload.requestId;
     captureSuspendRef.current = null;
-    screenActionRequestRef.current += 1;
-    replaceAttemptRef.current += 1;
+    requests.screen.invalidate();
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
     replaceContextRef.current = nextOrigin !== "screen" && payload.canReplace && payload.text
@@ -283,9 +290,9 @@ export default function Popup() {
     window.clearTimeout(debounce.current);
     debounce.current = undefined;
     backendRequestRef.current = null;
-    localRequestRef.current += 1;
-    editRequestRef.current += 1;
-    replaceAttemptRef.current += 1;
+    requests.local.invalidate();
+    requests.edit.invalidate();
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
     replaceContextRef.current = null;
@@ -302,7 +309,7 @@ export default function Popup() {
     captureSuspendRef.current = payload.requestId;
     captureWasVisibleRef.current = !hiddenRef.current;
     capturePreviousStatusRef.current = statusRef.current;
-    screenActionRequestRef.current += 1;
+    requests.screen.invalidate();
     setScreenActionPending(false);
     setScreenActionError(null);
     invalidateForScreenCapture();
@@ -330,15 +337,15 @@ export default function Popup() {
 
   async function requestScreenCapture() {
     if (screenActionPending) return;
-    const request = ++screenActionRequestRef.current;
+    const request = requests.screen.begin();
     setScreenActionPending(true);
     setScreenActionError(null);
     try {
       await api.translateScreen();
     } catch (e) {
-      if (request === screenActionRequestRef.current) setScreenActionError(errorText(e));
+      if (requests.screen.isCurrent(request)) setScreenActionError(errorText(e));
     } finally {
-      if (request === screenActionRequestRef.current) setScreenActionPending(false);
+      if (requests.screen.isCurrent(request)) setScreenActionPending(false);
     }
   }
 
@@ -375,18 +382,18 @@ export default function Popup() {
         if (pinnedRef.current) return;
         if (
           guard
-          && guard.attempt === replaceAttemptRef.current
+          && requests.replace.isCurrent(guard.attempt)
           && guard.requestId === replaceContextRef.current?.requestId
         ) return;
 
-        const attempt = replaceAttemptRef.current;
+        const attempt = requests.replace.token();
         const requestId = replaceContextRef.current?.requestId ?? null;
         void win?.isFocused().then((isFocused) => {
           if (
             isFocused
             || pinnedRef.current
             || replacePendingRef.current
-            || attempt !== replaceAttemptRef.current
+            || !requests.replace.isCurrent(attempt)
             || requestId !== (replaceContextRef.current?.requestId ?? null)
           ) return;
           hideNow();
@@ -404,7 +411,7 @@ export default function Popup() {
       if (editModeRef.current) {
         e.preventDefault();
         if (editSaveStateRef.current === "saving") return;
-        editRequestRef.current += 1;
+        requests.edit.invalidate();
         setDraft(committedTextRef.current);
         setEditMode(false);
         setEditSaveState("idle");
@@ -428,7 +435,7 @@ export default function Popup() {
   }, []);
 
   function applyResult(r: TranslateResult, replacementRequestId: number | null = null) {
-    editRequestRef.current += 1;
+    requests.edit.invalidate();
     favoriteControllerRef.current.accept(r.historyId, r.isFavorite);
     const context = replaceContextRef.current;
     replacePendingRef.current = false;
@@ -447,11 +454,11 @@ export default function Popup() {
     if (!text.trim()) return;
     favoriteControllerRef.current.clear();
     backendRequestRef.current = null;
-    replaceAttemptRef.current += 1;
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
-    editRequestRef.current += 1;
-    const request = ++localRequestRef.current;
+    requests.edit.invalidate();
+    const request = requests.local.begin();
     setReplaceRequestId(null); setReplaceState("idle"); setReplaceError(null);
     setEditMode(false); setEditSaveState("idle"); setEditError(null);
     setEngineMenuOpen(false); setEnginePending(false); setEngineError(null);
@@ -459,9 +466,9 @@ export default function Popup() {
     setStatus("loading"); setError(null);
     try {
       const translated = await api.translate(text, to, selectedEngineRef.current);
-      if (request === localRequestRef.current) applyResult(translated, replacementRequestId);
+      if (requests.local.isCurrent(request)) applyResult(translated, replacementRequestId);
     } catch (e) {
-      if (request === localRequestRef.current) {
+      if (requests.local.isCurrent(request)) {
         statusRef.current = "error";
         setError({ title: errorText(e), hint: errorHint(e) }); setStatus("error");
       }
@@ -582,7 +589,7 @@ export default function Popup() {
 
   function cancelEdit() {
     if (editSaveState === "saving") return;
-    editRequestRef.current += 1;
+    requests.edit.invalidate();
     setDraft(result?.text ?? "");
     setEditMode(false);
     setEditSaveState("idle");
@@ -598,7 +605,7 @@ export default function Popup() {
       return result;
     }
 
-    const request = ++editRequestRef.current;
+    const request = requests.edit.begin();
     const sourceText = currentText;
     setEditSaveState("saving");
     setEditError(null);
@@ -607,7 +614,7 @@ export default function Popup() {
       const actualFavorite = result.historyId === null
         ? result.isFavorite
         : await api.updateTranslationText(result.historyId, sourceText, result.text, nextText);
-      if (request !== editRequestRef.current) return null;
+      if (!requests.edit.isCurrent(request)) return null;
       const updated = { ...result, text: nextText, isFavorite: actualFavorite };
       favoriteControllerRef.current.accept(updated.historyId, actualFavorite);
       setResult(updated);
@@ -618,7 +625,7 @@ export default function Popup() {
       setEditError(null);
       return updated;
     } catch (e) {
-      if (request !== editRequestRef.current) return null;
+      if (!requests.edit.isCurrent(request)) return null;
       setEditSaveState("error");
       setEditError(`Не удалось сохранить перевод: ${errorText(e)}. Исправленный текст не потерян.`);
       return null;
@@ -630,9 +637,9 @@ export default function Popup() {
     const opening = !engineMenuOpen;
     setEngineMenuOpen(opening);
     if (!opening) return;
-    const request = localRequestRef.current;
+    const request = requests.local.token();
     void api.getSettings().then((fresh) => {
-      if (request === localRequestRef.current) setSettings(fresh);
+      if (requests.local.isCurrent(request)) setSettings(fresh);
     }).catch(() => undefined);
   }
 
@@ -644,12 +651,12 @@ export default function Popup() {
     setEnginePending(true);
     setEngineError(null);
     backendRequestRef.current = null;
-    const request = ++localRequestRef.current;
+    const request = requests.local.begin();
     try {
       const translated = await api.translate(currentText, target, engine);
-      if (request === localRequestRef.current) applyResult(translated, replacementRequestFor(currentText));
+      if (requests.local.isCurrent(request)) applyResult(translated, replacementRequestFor(currentText));
     } catch (e) {
-      if (request !== localRequestRef.current) return;
+      if (!requests.local.isCurrent(request)) return;
       setEnginePending(false);
       setEngineError(`Не удалось перевести через ${engine ? engineName(engine) : "автоматический выбор"}: ${errorText(e)}.`);
     }
@@ -668,9 +675,9 @@ export default function Popup() {
     window.clearTimeout(debounce.current);
     favoriteControllerRef.current.clear();
     backendRequestRef.current = null;
-    localRequestRef.current += 1;
-    editRequestRef.current += 1;
-    replaceAttemptRef.current += 1;
+    requests.local.invalidate();
+    requests.edit.invalidate();
+    requests.replace.invalidate();
     replacePendingRef.current = false;
     replaceFocusGuardRef.current = null;
     replaceContextRef.current = null;
@@ -727,15 +734,15 @@ export default function Popup() {
     const context = replaceContextRef.current;
     if (!canReplace || !context || !result || replaceState !== "idle" || replacePendingRef.current) return;
     replacePendingRef.current = true;
-    const attempt = ++replaceAttemptRef.current;
+    const attempt = requests.replace.begin();
     replaceFocusGuardRef.current = { attempt, requestId: context.requestId, phase: "pending" };
     setReplaceState("pending");
     setReplaceError(null);
     try {
       await api.replacePopupTranslation(context.requestId, context.sourceText, visibleTranslation);
-      if (attempt === replaceAttemptRef.current) setReplaceState("done");
+      if (requests.replace.isCurrent(attempt)) setReplaceState("done");
     } catch (e) {
-      if (attempt !== replaceAttemptRef.current) return;
+      if (!requests.replace.isCurrent(attempt)) return;
       replacePendingRef.current = false;
       const guard = replaceFocusGuardRef.current;
       if (guard?.attempt === attempt && guard.requestId === context.requestId) {
@@ -778,126 +785,63 @@ export default function Popup() {
 
   if (soloToast) return <div style={{ padding: frameMargin }} className="h-full w-full">{toastNode}</div>;
 
+  // «Оригинал» есть, когда есть что показать: для экрана это правка распознанного текста,
+  // для выделения — исходник (в словарном режиме слово и так на карточке).
+  const canShowOriginal = status === "result" && result !== null && !inputMode
+    && (showOriginal || source.trim().length > 0)
+    && (origin === "screen" || !result.wordMode);
+  // Распознанный текст остаётся на экране и во время перевода правки: иначе поле теряет фокус.
+  const sourceBlockShown = origin === "screen"
+    ? showOriginal && status !== "recognizing"
+    : showOriginal && status === "result" && result !== null && !result.wordMode;
+
   const translationEditor = editMode && result && (
-    <div className="popup-edit-box">
-      <textarea
-        ref={editRef}
-        aria-label="Редактировать перевод"
-        value={draft}
-        rows={3}
-        disabled={controlsBusy || replaceState === "pending"}
-        className="field popup-edit-textarea"
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setCopied(false);
-          setEditError(null);
-          if (editSaveState === "error") setEditSaveState("idle");
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && e.ctrlKey) {
-            e.preventDefault();
-            void saveEditedTranslation();
-          }
-        }}
-      />
-      <div className="popup-edit-controls">
-        <span className="text-[11px] text-ink-3">Ctrl+Enter — готово</span>
-        <span className="flex-1" />
-        <button type="button" onClick={cancelEdit} disabled={controlsBusy || replaceState === "pending"}>Отменить</button>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => { void saveEditedTranslation(); }}
-          disabled={!hasVisibleTranslation || controlsBusy || replaceState === "pending"}
-        >
-          {editSaveState === "saving" ? "Сохраняем…" : "Готово"}
-        </button>
-      </div>
-      {editError && <div className="popup-inline-error" role="alert">{editError}</div>}
-    </div>
+    <TranslationEditor
+      editorRef={editRef}
+      value={draft}
+      saving={editSaveState === "saving"}
+      disabled={controlsBusy || replaceState === "pending"}
+      canSave={hasVisibleTranslation}
+      error={editError}
+      onChange={(value) => {
+        setDraft(value);
+        setCopied(false);
+        setEditError(null);
+        if (editSaveState === "error") setEditSaveState("idle");
+      }}
+      onCancel={cancelEdit}
+      onSave={() => { void saveEditedTranslation(); }}
+    />
   );
 
-  const screenSourceEditor = origin === "screen" && showOriginal && status !== "recognizing" && (
-    <div className="popup-source-correction">
-      <label htmlFor="popup-screen-source" className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">
-        Распознанный текст
-      </label>
-      <textarea
-        id="popup-screen-source"
-        aria-label="Распознанный текст"
-        value={source}
-        rows={3}
-        spellCheck={false}
-        disabled={controlsBusy || editMode}
-        className="field popup-edit-textarea"
-        onChange={(event) => onInput(event.target.value)}
-      />
-      <span className="text-[11px] text-ink-3">Исправления переводятся автоматически.</span>
-    </div>
-  );
-
-  // Действия переносятся целыми группами: на узкой рабочей области ни одна кнопка не обрезается.
   const actions = (
-    <div className="popup-footer">
-      <div className="popup-footer-actions">
-      {origin !== "screen" && <Pill
-        variant="water"
-        size="md"
-        disabled={!canReplace}
-        aria-label="Заменить"
-        title={result && hasVisibleTranslation ? `Заменить на «${visibleTranslation}»` : "Дождитесь непустого результата перевода"}
-        onClick={replaceSelection}
-      >
-        {replaceState === "pending"
-          ? "Заменяем…"
-          : replaceState === "done"
-            ? "Заменено"
-            : replaceState === "failed"
-              ? "Выделите заново"
-              : "Заменить"}
-      </Pill>}
-      {status === "result" && result && (<>
-      <IconButton
-        icon={copied ? "check" : "copy"}
-        label={copied ? "Скопировано" : "Копировать"}
-        size={36}
-        onClick={copy}
-        disabled={!hasVisibleTranslation || controlsBusy}
-      />
-      {!result.wordMode && (
-        <IconButton
-          icon="speaker"
-          label="Озвучить"
-          size={36}
-          onClick={() => speak(visibleTranslation, result.target)}
-          disabled={!hasVisibleTranslation || controlsBusy}
-        />
-      )}
-      <IconButton
-        icon="star"
-        label="В избранное"
-        size={36}
-        tone="sand"
-        active={favorite}
-        className={starPop ? "star-pop" : ""}
-        onClick={toggleFavorite}
-        disabled={!result.historyId || !hasVisibleTranslation || controlsBusy}
-      />
-      </>)}
-      </div>
-      {origin !== "screen" && status === "result" && result && !inputMode && !result.wordMode && (
-        <button
-          className="popup-original-toggle flex items-center gap-1.5 pr-1.5 text-[12px] transition-colors"
-          style={{ color: showOriginal ? "var(--water)" : "var(--ink-3)" }}
-          aria-expanded={showOriginal}
-          onClick={() => setShowOriginal((s) => !s)}
-        >
-          Оригинал
-          <Icon name="chevron" size={12} className={`chevron ${showOriginal ? "rotate-180" : ""}`} />
-        </button>
-      )}
-      {replaceError && <div className="popup-replace-error" role="alert">{replaceError}</div>}
-    </div>
+    <PopupFooter
+      origin={origin}
+      status={status}
+      result={result}
+      hasVisibleTranslation={hasVisibleTranslation}
+      visibleTranslation={visibleTranslation}
+      controlsBusy={controlsBusy}
+      canReplace={canReplace}
+      replaceState={replaceState}
+      replaceError={replaceError}
+      screenActionPending={screenActionPending}
+      screenActionError={screenActionError}
+      screenHotkeyHint={settings?.hotkeyScreen ?? "Ctrl+Alt+S"}
+      favorite={favorite}
+      starPop={starPop}
+      copied={copied}
+      editMode={editMode}
+      showOriginal={showOriginal}
+      canShowOriginal={canShowOriginal}
+      onReplace={replaceSelection}
+      onScreenCapture={() => { void requestScreenCapture(); }}
+      onCopy={copy}
+      onSpeak={() => { if (result) speak(visibleTranslation, result.target); }}
+      onFavorite={() => { void toggleFavorite(); }}
+      onToggleEdit={() => { if (editMode) cancelEdit(); else beginEdit(); }}
+      onToggleOriginal={() => setShowOriginal((shown) => !shown)}
+    />
   );
 
   return (
@@ -925,100 +869,33 @@ export default function Popup() {
           }}
           className="flex flex-col gap-[13px]"
         >
-          <div ref={pillRef} className="flex items-center gap-2.5">
-            <div className={`langpill ${expanded ? "on" : ""}`}>
-              <span className={`dot ${detected ? "" : "hollow"} ${status === "loading" || status === "recognizing" ? "pulse" : ""}`} />
-              <span className="text-[12px] font-semibold tracking-[0.07em] text-ink-2">{(detected ?? "auto").toUpperCase()}</span>
-              <Icon name="arrow" size={14} className="text-ink-3" />
-              <button
-                className="text-[12px] font-semibold tracking-[0.07em] text-water"
-                onClick={switchTarget}
-                title="Сменить целевой язык"
-                disabled={controlsBusy || editMode || replaceState === "pending"}
-              >
-                {target.toUpperCase()}
-              </button>
-            </div>
-            {!expanded && status === "recognizing" && (
-              <span className="pr-3 text-[12px] font-medium text-ink-2" role="status">Распознаём…</span>
-            )}
-            <AnimatePresence>
-              {expanded && (
-                <motion.div
-                  key="hdr"
-                  variants={headerFx}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  style={{ transformOrigin: "right center" }}
-                  className="flex min-w-0 flex-1 items-center gap-2.5"
-                >
-                  {status === "loading" && <span className="text-[12px] text-ink-3">переводим…</span>}
-                  {status === "error" && <span className="text-[12px] text-err">не удалось</span>}
-                  {status === "result" && result && (<>
-                    <button
-                      ref={engineButtonRef}
-                      type="button"
-                      className={`badge popup-engine-button ${result.fallbackFrom ? "sand" : ""}`}
-                      title={result.fallbackFrom ?? "Выбрать движок перевода"}
-                      aria-label="Выбрать движок перевода"
-                      aria-haspopup="menu"
-                      aria-expanded={engineMenuOpen}
-                      disabled={controlsBusy || editMode || replaceState === "pending"}
-                      onClick={toggleEngineMenu}
-                    >
-                      <span className="badge-dot" />
-                      {engineLabel(result)}
-                      <Icon name="chevron" size={10} className={`chevron ${engineMenuOpen ? "rotate-180" : ""}`} />
-                    </button>
-                  </>)}
-                  <div className="flex-1" />
-                  <div className="flex shrink-0 gap-1.5">
-                    <IconButton icon="pin" label="Закрепить" active={pinned} onClick={() => setPinned((p) => !p)} />
-                    <IconButton icon="expand" label="Открыть в окне" onClick={() => api.openMain(currentText || undefined)} />
-                    <IconButton icon="close" label="Закрыть (Esc)" onClick={closeAnimated} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <PopupHeader
+            containerRef={pillRef}
+            engineButtonRef={engineButtonRef}
+            expanded={expanded}
+            status={status}
+            origin={origin}
+            detected={detected}
+            target={target}
+            result={result}
+            engineMenuOpen={engineMenuOpen}
+            locked={controlsBusy || editMode || replaceState === "pending"}
+            pinned={pinned}
+            headerFx={headerFx}
+            onSwitchTarget={switchTarget}
+            onToggleEngineMenu={toggleEngineMenu}
+            onTogglePin={() => setPinned((p) => !p)}
+            onOpenMain={() => api.openMain(currentText || undefined)}
+            onClose={closeAnimated}
+          />
 
-          <AnimatePresence initial={false}>
-            {expanded && engineMenuOpen && status === "result" && result && (
-              <motion.div
-                key="engine-menu"
-                className="popup-engine-menu"
-                role="menu"
-                aria-label="Движок перевода"
-                variants={fx(3, 2)}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-              >
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={selectedEngine === undefined}
-                  className={selectedEngine === undefined ? "active" : ""}
-                  onClick={() => chooseEngine(undefined)}
-                >
-                  Автоматически
-                </button>
-                {availableEngines.map((engine) => (
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selectedEngine === engine}
-                    className={selectedEngine === engine ? "active" : ""}
-                    key={engine}
-                    onClick={() => chooseEngine(engine)}
-                  >
-                    {engineName(engine)}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <EngineMenu
+            open={expanded && engineMenuOpen && status === "result" && result !== null}
+            engines={availableEngines}
+            selected={selectedEngine}
+            variants={fx(3, 2)}
+            onChoose={chooseEngine}
+          />
 
           {expanded && (
             <div className="flex min-h-0 flex-1 flex-col gap-[13px]" aria-live="polite">
@@ -1040,9 +917,6 @@ export default function Popup() {
                   <div className="flex items-center gap-2 text-[11px] text-ink-3">
                     <span>Enter — перевести, Shift+Enter — новая строка</span>
                     <div className="flex-1" />
-                    <span>{input.length} / 5000</span>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <Pill
                       icon="screen"
                       disabled={screenActionPending}
@@ -1051,25 +925,20 @@ export default function Popup() {
                     >
                       {screenActionPending ? "Открываем…" : "С экрана"}
                     </Pill>
-                    {screenActionError && <span className="text-[11px] text-err" role="alert">{screenActionError}</span>}
+                    <span>{input.length} / 5000</span>
                   </div>
+                  {screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
                 </div>
               )}
 
-              {origin === "screen" && status !== "recognizing" && (
-                <div className="popup-screen-origin">
-                  <span className="flex items-center gap-1.5"><Icon name="screen" size={13} /> с экрана</span>
-                  <span className="flex-1" />
-                  {(source || showOriginal) && <button type="button" aria-expanded={showOriginal} onClick={() => setShowOriginal((shown) => !shown)}>
-                    {showOriginal ? "Скрыть исходник" : "Исправить текст"}
-                  </button>}
-                  <button type="button" disabled={screenActionPending} onClick={() => { void requestScreenCapture(); }}>
-                    {screenActionPending ? "Открываем…" : "Выделить заново"}
-                  </button>
-                </div>
-              )}
-              {origin === "screen" && screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
-              {screenSourceEditor}
+              <SourceBlock
+                shown={sourceBlockShown}
+                origin={origin}
+                source={source}
+                disabled={controlsBusy || editMode}
+                variants={fx()}
+                onChange={onInput}
+              />
 
               {clipNote && <div className="px-1 text-[12px] text-warn">Буфер обмена содержал не текст и был заменён.</div>}
               {enginePending && <div className="px-1 text-[12px] text-ink-3" role="status">Переводим через выбранный движок…</div>}
@@ -1089,7 +958,7 @@ export default function Popup() {
                         <span className="text-[18px] font-semibold tracking-[-0.015em]">{error.title}</span>
                         <span className="text-[13px] leading-[1.5] text-ink-2">{error.hint}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {currentText.trim() && <Pill
                           variant="water"
                           size="md"
@@ -1098,16 +967,19 @@ export default function Popup() {
                         >
                           Повторить
                         </Pill>}
-                        {origin !== "screen" && <Pill
+                        <Pill
+                          size="md"
                           icon="screen"
                           disabled={screenActionPending}
                           onClick={() => { void requestScreenCapture(); }}
                         >
-                          {screenActionPending ? "Открываем…" : "С экрана"}
-                        </Pill>}
+                          {screenActionPending
+                            ? "Открываем…"
+                            : origin === "screen" ? "Выделить заново" : "С экрана"}
+                        </Pill>
                         <Pill size="md" onClick={() => api.openMain(currentText || undefined)}>Открыть окно</Pill>
                       </div>
-                      {origin !== "screen" && screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
+                      {screenActionError && <div className="popup-inline-error" role="alert">{screenActionError}</div>}
                     </motion.div>
                   )}
 
@@ -1121,18 +993,7 @@ export default function Popup() {
                               <IconButton icon="speaker" label="Озвучить оригинал" size={28} onClick={() => speak(currentText, result.detected)} />
                             </div>
                             {editMode ? translationEditor : (
-                              <div className="flex items-start gap-2">
-                                <span className="select-text min-w-0 flex-1 text-[20px] font-semibold tracking-[-0.01em] text-water">{result.text}</span>
-                                <button
-                                  type="button"
-                                  className="popup-edit-trigger"
-                                  aria-label="Редактировать перевод"
-                                  onClick={beginEdit}
-                                  disabled={enginePending || replaceState === "pending"}
-                                >
-                                  Редактировать
-                                </button>
-                              </div>
+                              <span data-popup-translation className="select-text text-[20px] font-semibold tracking-[-0.01em] text-water">{result.text}</span>
                             )}
                           </div>
                           {result.alternatives.length > 0 && (
@@ -1152,39 +1013,13 @@ export default function Popup() {
                         </>
                       ) : (
                         <div className="flex flex-col gap-[11px] px-1">
-                          <AnimatePresence initial={false}>
-                            {showOriginal && origin !== "screen" && (
-                              <motion.div
-                                key="orig"
-                                data-popup-original
-                                variants={fx()}
-                                initial="hidden"
-                                animate="visible"
-                                exit="exit"
-                                className="select-text border-b border-line pb-[11px] text-[13px] leading-[1.55] text-ink-3"
-                                style={{ maxHeight: 120, overflow: "auto" }}
-                              >
-                                {source}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
                           {editMode ? translationEditor : (
-                            <div className="flex items-start gap-2.5">
-                              <div
-                                className="select-text min-w-0 flex-1"
-                                style={{ fontSize, lineHeight: 1.5, letterSpacing: "-0.005em", maxHeight: 300, overflow: "auto", textWrap: "pretty" }}
-                              >
-                                {result.text}
-                              </div>
-                              <button
-                                type="button"
-                                className="popup-edit-trigger"
-                                aria-label="Редактировать перевод"
-                                onClick={beginEdit}
-                                disabled={enginePending || replaceState === "pending"}
-                              >
-                                Редактировать
-                              </button>
+                            <div
+                              data-popup-translation
+                              className="select-text w-full"
+                              style={{ fontSize, lineHeight: 1.5, letterSpacing: "-0.005em", maxHeight: 300, overflow: "auto", textWrap: "pretty" }}
+                            >
+                              {result.text}
                             </div>
                           )}
                         </div>

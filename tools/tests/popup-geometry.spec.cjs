@@ -288,7 +288,7 @@ test("Replace sends the displayed translation and captured source without transl
   const replace = page.getByRole("button", { name: "Заменить" });
   await expect(replace).toBeEnabled();
   await expect(replace).toHaveAttribute("title", `Заменить на «${translated}»`);
-  for (const name of ["Заменить", "Копировать", "Озвучить", "В избранное", "Оригинал"]) {
+  for (const name of ["Заменить", "Копировать", "Озвучить", "В избранное", "Редактировать перевод", "Оригинал"]) {
     await expect(page.getByRole("button", { name })).toBeInViewport();
   }
   const footerFits = await page.locator(".popup-footer").evaluate((footer) => {
@@ -864,4 +864,17 @@ test("late CAS save cannot overwrite a newer popup result", async ({ page }) => 
   await page.waitForTimeout(500);
   await expect(page.getByText("new result")).toBeVisible();
   await expect(page.getByRole("button", { name: "В избранное" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("selection translation text fills the card width", async ({ page }) => {
+  await installTauriMock(page);
+  await page.goto("http://127.0.0.1:1420/?w=popup");
+  await showResult(page, { source: "Original source", translated: longText, requestId: 920 });
+  const ratio = await page.locator("[data-popup-translation]").evaluate((el) => {
+    const card = el.closest(".pop").firstElementChild;
+    const style = getComputedStyle(card);
+    const inner = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return el.getBoundingClientRect().width / inner;
+  });
+  expect(ratio).toBeGreaterThanOrEqual(0.9);
 });

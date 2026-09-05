@@ -102,7 +102,7 @@ Click **“Edit translation”** to revise the result in the popup. **“Done”
 
 **Open the window and translate manually.** `Ctrl+Alt+W` opens the main window with Translate, History, Favorites, and Settings tabs; if you had a selection, it's dropped into the source field.
 
-**Translate text on screen.** Press `Ctrl+Alt+S` or **“From screen”** → drag around text on any monitor → wait for local recognition and translation in the usual popup. `Esc` and right click cancel. Use **“Correct text”** to fix recognition mistakes. OCR initially targets Russian and English; see the [architecture, privacy, and limitations](docs/screen-translation.md).
+**Translate text on screen.** Press `Ctrl+Alt+S` or **“From screen”** → drag around text on any monitor → wait for local recognition and translation in the usual popup. `Esc` and right click cancel. Open **“Original”** to fix recognition mistakes — for screen translation the block is editable. OCR initially targets Russian and English; see the [architecture, privacy, and limitations](docs/screen-translation.md).
 
 For one or two words, the popup switches to dictionary mode and shows alternative meanings instead of a phrase translation. The pin icon in the popup header keeps it on screen — it stays open and refreshes on the next hotkey press until closed explicitly.
 

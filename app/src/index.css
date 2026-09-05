@@ -199,24 +199,34 @@ html[data-theme="dark"] {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
+  /* Просвет 6, а не 8: иначе ряд «Выделить заново + четыре иконки + Оригинал» не влезает в 402. */
   .popup-footer-actions {
     display: flex;
     flex: 1 1 auto;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .popup-original-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     margin-left: auto;
-    min-height: 36px;
+    height: 36px;
+    padding: 0 4px;
     flex-shrink: 0;
+    font-size: 12px;
+    transition: transform var(--dur-press) var(--ease-out), color 150ms ease;
+  }
+  .popup-original-toggle:active {
+    transform: scale(0.97);
   }
 
-  .popup-replace-error {
+  .popup-footer-error {
     flex: 1 0 100%;
     padding: 0 4px;
     color: var(--err);
@@ -231,36 +241,6 @@ html[data-theme="dark"] {
     line-height: 1.45;
   }
 
-  .popup-screen-origin {
-    display: flex;
-    min-height: 30px;
-    align-items: center;
-    gap: 8px;
-    padding: 0 4px;
-    color: var(--ink-3);
-    font-size: 11px;
-  }
-
-  .popup-screen-origin button {
-    min-height: 28px;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    color: var(--ink-3);
-    font-size: 11px;
-    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
-  }
-
-  .popup-screen-origin button:hover:not(:disabled) {
-    background: var(--tile);
-    border-color: var(--line-2);
-    color: var(--ink);
-  }
-
-  .popup-screen-origin button:disabled {
-    opacity: 0.55;
-  }
-
   .popup-source-correction {
     display: flex;
     flex-direction: column;
@@ -270,15 +250,23 @@ html[data-theme="dark"] {
 
   .popup-engine-button {
     min-width: 0;
+    padding: 0 8px;
     max-width: 150px;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease,
+      border-color 150ms ease, color 150ms ease;
   }
 
-  .popup-engine-button:hover:not(:disabled) {
-    background: var(--tile-2);
-    border-color: var(--line);
+  @media (hover: hover) and (pointer: fine) {
+    .popup-engine-button:hover:not(:disabled) {
+      background: var(--tile-2);
+      border-color: var(--line);
+    }
+  }
+
+  .popup-engine-button:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .popup-engine-button:disabled {
@@ -296,8 +284,7 @@ html[data-theme="dark"] {
   }
 
   .popup-engine-menu button,
-  .popup-edit-controls button,
-  .popup-edit-trigger {
+  .popup-edit-controls button {
     border: 1px solid transparent;
     border-radius: 999px;
     color: var(--ink-2);
@@ -310,29 +297,18 @@ html[data-theme="dark"] {
     font-size: 12px;
   }
 
-  .popup-engine-menu button:hover,
+  @media (hover: hover) and (pointer: fine) {
+    .popup-engine-menu button:hover {
+      background: var(--card);
+      border-color: var(--line);
+      color: var(--ink);
+    }
+  }
+
   .popup-engine-menu button.active {
     background: var(--card);
     border-color: var(--line);
     color: var(--ink);
-  }
-
-  .popup-edit-trigger {
-    flex-shrink: 0;
-    min-height: 28px;
-    padding: 0 8px;
-    font-size: 11px;
-    color: var(--ink-3);
-  }
-
-  .popup-edit-trigger:hover:not(:disabled) {
-    background: var(--tile);
-    border-color: var(--line-2);
-    color: var(--ink);
-  }
-
-  .popup-edit-trigger:disabled {
-    opacity: 0.55;
   }
 
   .popup-edit-box {
@@ -367,10 +343,12 @@ html[data-theme="dark"] {
     font-weight: 600;
   }
 
-  .popup-edit-controls button:hover:not(:disabled) {
-    background: var(--tile);
-    border-color: var(--line-2);
-    color: var(--ink);
+  @media (hover: hover) and (pointer: fine) {
+    .popup-edit-controls button:hover:not(:disabled) {
+      background: var(--tile);
+      border-color: var(--line-2);
+      color: var(--ink);
+    }
   }
 
   .popup-edit-controls button.primary {
@@ -379,10 +357,12 @@ html[data-theme="dark"] {
     color: var(--on-water);
   }
 
-  .popup-edit-controls button.primary:hover:not(:disabled) {
-    background: var(--water-deep);
-    border-color: transparent;
-    color: var(--on-water);
+  @media (hover: hover) and (pointer: fine) {
+    .popup-edit-controls button.primary:hover:not(:disabled) {
+      background: var(--water-deep);
+      border-color: transparent;
+      color: var(--on-water);
+    }
   }
 
   .popup-edit-controls button:disabled {
@@ -424,11 +404,13 @@ html[data-theme="dark"] {
   }
   .pill.md {
     height: 36px;
-    padding: 0 16px;
+    padding: 0 14px;
   }
-  .pill:hover:not(:disabled) {
-    background: var(--tile-2);
-    border-color: var(--line);
+  @media (hover: hover) and (pointer: fine) {
+    .pill:hover:not(:disabled) {
+      background: var(--tile-2);
+      border-color: var(--line);
+    }
   }
   .pill:active:not(:disabled) {
     transform: scale(0.97);
@@ -441,7 +423,12 @@ html[data-theme="dark"] {
     color: var(--on-water);
     font-weight: 600;
   }
-  .pill.water:hover:not(:disabled),
+  @media (hover: hover) and (pointer: fine) {
+    .pill.water:hover:not(:disabled) {
+      background: var(--water-deep);
+      border-color: transparent;
+    }
+  }
   .pill.water:active:not(:disabled) {
     background: var(--water-deep);
     border-color: transparent;
@@ -505,10 +492,12 @@ html[data-theme="dark"] {
     width: 36px;
     height: 36px;
   }
-  .rb:hover:not(:disabled) {
-    background: var(--tile-2);
-    border-color: var(--line);
-    color: var(--ink);
+  @media (hover: hover) and (pointer: fine) {
+    .rb:hover:not(:disabled) {
+      background: var(--tile-2);
+      border-color: var(--line);
+      color: var(--ink);
+    }
   }
   .rb:active:not(:disabled) {
     transform: scale(0.97);
@@ -552,9 +541,18 @@ html[data-theme="dark"] {
     border: 1px solid transparent;
     transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
   }
+  /* В карточке пилюля языков ужимается: рядом с ней должны уместиться два бейджа и три кнопки. */
   .langpill.on {
+    gap: 6px;
+    padding: 0 11px;
     background: var(--tile-2);
     border-color: var(--line-2);
+  }
+
+  /* Бейдж источника «с экрана»: компактнее обычного, чтобы не съедать имя движка. */
+  .popup-origin-badge {
+    gap: 5px;
+    padding: 0 8px;
   }
 
   /* Бейдж: какой движок ответил. .sand — цепочка ушла на резервный. */
@@ -612,9 +610,11 @@ html[data-theme="dark"] {
     transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease,
       border-color 150ms ease;
   }
-  .chip:hover {
-    background: var(--tile-2);
-    border-color: var(--line);
+  @media (hover: hover) and (pointer: fine) {
+    .chip:hover {
+      background: var(--tile-2);
+      border-color: var(--line);
+    }
   }
   .chip:active {
     transform: scale(0.97);
@@ -649,8 +649,10 @@ html[data-theme="dark"] {
     outline: none;
     transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
   }
-  .field:hover {
-    border-color: var(--line);
+  @media (hover: hover) and (pointer: fine) {
+    .field:hover {
+      border-color: var(--line);
+    }
   }
   .field::placeholder {
     color: var(--ink-3);
@@ -722,9 +724,8 @@ html[data-theme="dark"] {
   .row:focus-visible,
   .popup-engine-button:focus-visible,
   .popup-engine-menu button:focus-visible,
-  .popup-edit-trigger:focus-visible,
   .popup-edit-controls button:focus-visible,
-  .popup-screen-origin button:focus-visible {
+  .popup-original-toggle:focus-visible {
     outline: none;
     border-color: var(--water-line);
     box-shadow: 0 0 0 3px var(--water-soft);
@@ -958,14 +959,18 @@ html[data-theme="dark"] {
   .seg,
   .swap,
   .toggle-thumb,
-  .chevron {
+  .chevron,
+  .popup-engine-button,
+  .popup-original-toggle {
     transition-duration: 1ms;
   }
   .pill:active,
   .rb:active,
   .chip:active,
   .seg:active,
-  .swap:active {
+  .swap:active,
+  .popup-engine-button:active,
+  .popup-original-toggle:active {
     transform: none;
   }
   .pulse,

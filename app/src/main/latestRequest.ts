@@ -11,6 +11,11 @@ export class LatestRequest {
     this.generation += 1;
   }
 
+  /** Текущее поколение без начала нового: для проверок, которые сами ничего не отменяют. */
+  token(): number {
+    return this.generation;
+  }
+
   isCurrent(token: number): boolean {
     return token === this.generation;
   }

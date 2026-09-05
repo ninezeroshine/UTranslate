@@ -176,6 +176,16 @@ async function showScreenResult(page, requestId = 10) {
   await expect(page.getByText("Screen translation", { exact: true })).toBeVisible();
 }
 
+/** Доля внутренней ширины карточки, которую занял текст перевода. */
+async function translationWidthRatio(page) {
+  return page.locator("[data-popup-translation]").evaluate((el) => {
+    const card = el.closest(".pop").firstElementChild;
+    const style = getComputedStyle(card);
+    const inner = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return el.getBoundingClientRect().width / inner;
+  });
+}
+
 test("main screen button preserves the draft and exposes pending state", async ({ page }) => {
   await page.goto("http://127.0.0.1:1420/");
   const source = page.getByRole("textbox", { name: "Исходный текст" });
@@ -232,7 +242,7 @@ test("recognizing becomes translation in the same screen session and never offer
   await expect(page.getByText("Перевод с экрана", { exact: true })).toBeVisible();
   await expect(page.getByText("с экрана", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Заменить", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Исправить текст", exact: true }).click();
+  await page.getByRole("button", { name: "Оригинал", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Распознанный текст" })).toHaveValue("Recognized source");
   await page.waitForTimeout(700);
   await page.screenshot({ path: path.join(os.tmpdir(), "utranslate-screen-source-correction.png") });
@@ -241,7 +251,7 @@ test("recognizing becomes translation in the same screen session and never offer
 test("source correction and closed or newer sessions reject stale OCR and results", async ({ page }) => {
   await openPopup(page);
   await showScreenResult(page, 20);
-  await page.getByRole("button", { name: "Исправить текст", exact: true }).click();
+  await page.getByRole("button", { name: "Оригинал", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Распознанный текст" });
   await source.fill("");
   await expect(source).toBeVisible();
@@ -334,4 +344,47 @@ test("capture suspend ACK and resume preserve draft while clearing stale pending
   });
   await expect(page.getByText("Выбор области отменён", { exact: true })).toBeVisible();
   await expect(page.getByText("переводим…", { exact: true })).toHaveCount(0);
+});
+
+test("screen footer carries recapture, edit and Original instead of the old origin row", async ({ page }) => {
+  await openPopup(page);
+  await showScreenResult(page, 50);
+
+  await expect(page.locator(".popup-screen-origin")).toHaveCount(0);
+  const footer = page.locator(".popup-footer");
+  await expect(footer.getByRole("button", { name: "Выделить заново", exact: true })).toBeVisible();
+  await expect(footer.getByRole("button", { name: "Редактировать перевод" })).toBeVisible();
+  await expect(footer.getByRole("button", { name: "Оригинал" })).toBeVisible();
+  await expect(footer.getByRole("button", { name: "Заменить", exact: true })).toHaveCount(0);
+  // Бейдж источника переехал в шапку, к пилюле языков.
+  const badge = page.locator(".badge", { hasText: "с экрана" });
+  await expect(badge).toBeVisible();
+  expect(await badge.evaluate((el) => Boolean(el.closest(".popup-footer")))).toBe(false);
+
+  const rows = await footer.evaluate((el) => new Set(
+    [...el.querySelectorAll("button")].map((button) => Math.round(button.getBoundingClientRect().top)),
+  ).size);
+  expect(rows).toBe(1);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(os.tmpdir(), "utranslate-screen-footer.png") });
+});
+
+test("screen translation text fills the card width", async ({ page }) => {
+  await openPopup(page);
+  await showScreenResult(page, 51);
+  expect(await translationWidthRatio(page)).toBeGreaterThanOrEqual(0.9);
+});
+
+test("Original opens the recognized text and typing in it retranslates", async ({ page }) => {
+  await openPopup(page);
+  await showScreenResult(page, 52);
+  await page.getByRole("button", { name: "Оригинал", exact: true }).click();
+  const recognized = page.getByRole("textbox", { name: "Распознанный текст" });
+  await expect(recognized).toHaveValue("Recognized source");
+
+  await recognized.fill("Fixed by hand");
+  await expect.poll(() => page.evaluate(() => window.__screenMock.calls.filter(
+    (call) => call.cmd === "translate_text" && call.args.text === "Fixed by hand",
+  ).length)).toBe(1);
+  await expect(page.getByText("LOCAL: Fixed by hand", { exact: true })).toBeVisible();
 });
