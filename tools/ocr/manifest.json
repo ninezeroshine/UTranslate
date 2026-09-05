@@ -46,7 +46,6 @@
   "licenses": {
     "modelsAndPaddleReference": "Apache-2.0",
     "ppocrRs": "Apache-2.0 (declared in crate metadata; the crate archive omits a LICENSE file, so the standard text is preserved here)",
-    "onnxRuntime": "MIT with ThirdPartyNotices.txt",
-    "visualCppRuntime": "Microsoft Visual Studio REDIST list; copied from the licensed Build Tools installation and recorded per build"
+    "onnxRuntime": "MIT with ThirdPartyNotices.txt"
   }
 }

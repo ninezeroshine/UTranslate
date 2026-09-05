@@ -24,14 +24,44 @@ pub struct Toast {
     pub overlay: bool,
 }
 
-pub fn show_at_cursor(app: &AppHandle) -> tauri::Result<()> {
-    let cur = app.cursor_position()?;
-    show_at_point(app, cur.x, cur.y)
+/// Якорь, под которым встаёт карточка, в физических координатах экрана. Ширина якоря на
+/// размещение не влияет: карточка выравнивается по его левому краю и уходит вниз или вверх.
+/// Для курсорного пути это вырожденный якорь в точке курсора.
+#[derive(Clone, Copy)]
+pub struct Anchor {
+    pub left: f64,
+    pub top: f64,
+    pub bottom: f64,
 }
 
-/// Показывает карточку у физической точки экрана, например у нижнего правого угла
-/// захваченной области. Координаты не переводятся через DPI другого монитора.
-pub fn show_at_point(app: &AppHandle, x: f64, y: f64) -> tauri::Result<()> {
+impl Anchor {
+    pub fn point(x: f64, y: f64) -> Self {
+        Self {
+            left: x,
+            top: y,
+            bottom: y,
+        }
+    }
+
+    pub fn region(left: f64, top: f64, height: f64) -> Self {
+        Self {
+            left,
+            top,
+            bottom: top + height,
+        }
+    }
+}
+
+/// Курсорный путь: карточка на 12 px правее и 16 px ниже курсора.
+pub fn show_at_cursor(app: &AppHandle) -> tauri::Result<()> {
+    let cur = app.cursor_position()?;
+    show_near(app, Anchor::point(cur.x, cur.y), 12.0, 16.0)
+}
+
+/// Показывает карточку под прямоугольником-якорем; если снизу не помещается — над ним.
+/// Экранный перевод передаёт сюда выделенную область, чтобы карточка не легла на её текст.
+/// Координаты физические и не переводятся через DPI другого монитора.
+pub fn show_near(app: &AppHandle, anchor: Anchor, dx: f64, gap: f64) -> tauri::Result<()> {
     let win = app
         .get_webview_window("popup")
         .ok_or(tauri::Error::WindowNotFound)?;
@@ -39,14 +69,15 @@ pub fn show_at_point(app: &AppHandle, x: f64, y: f64) -> tauri::Result<()> {
     win.set_ignore_cursor_events(false)?;
     set_no_activate(&win, false)?;
     // Фронтенд после морфинга ужимает окно под содержимое, перед новым показом возвращаем запас.
-    let (width, height) = size_within_point_work_area(app, x, y, CARD_W, CARD_H)?;
+    let (width, height) =
+        size_within_point_work_area(app, anchor.left, anchor.bottom, CARD_W, CARD_H)?;
     let scale = app
-        .monitor_from_point(x, y)?
+        .monitor_from_point(anchor.left, anchor.bottom)?
         .map(|monitor| monitor.scale_factor())
         .unwrap_or(1.0);
     let (width, height) = logical_to_physical_size(width, height, scale);
     win.set_size(PhysicalSize::new(width, height))?;
-    place_at_point(app, &win, x, y)?;
+    place_near(app, &win, anchor, dx, gap)?;
     win.show()?;
     win.set_focus()?;
     watch_cursor(app.clone(), win);
@@ -76,7 +107,8 @@ pub fn show_toast(app: &AppHandle, text: &str) -> tauri::Result<()> {
     std::thread::sleep(Duration::from_millis(30));
     let (width, height) = size_within_cursor_work_area(app, CARD_W, TOAST_H)?;
     win.set_size(LogicalSize::new(width, height))?;
-    place_at_cursor(app, &win)?;
+    let cur = app.cursor_position()?;
+    place_near(app, &win, Anchor::point(cur.x, cur.y), 12.0, 16.0)?;
     // Тост ничего не принимает: клики проходят сквозь всё окно, опрос курсора не нужен.
     win.set_ignore_cursor_events(true)?;
     set_no_activate(&win, true)?;
@@ -116,15 +148,16 @@ pub fn restore_after_capture(app: &AppHandle, activate: bool) -> tauri::Result<(
     Ok(())
 }
 
-/// Ставит окно так, чтобы карточка (окно минус поля) оказалась в `курсор + (12, 16)`,
-/// с прижатием к краям рабочей области по прямоугольнику карточки, а не окна.
-fn place_at_cursor(app: &AppHandle, win: &WebviewWindow) -> tauri::Result<()> {
-    let cur = app.cursor_position()?;
-    place_at_point(app, win, cur.x, cur.y)
-}
-
-fn place_at_point(app: &AppHandle, win: &WebviewWindow, x: f64, y: f64) -> tauri::Result<()> {
-    let monitor = app.monitor_from_point(x, y)?;
+/// Ставит окно так, чтобы карточка (окно минус поля) встала под якорем в `+dx` по X и `+gap`
+/// по Y, с прижатием к краям рабочей области по прямоугольнику карточки, а не окна.
+fn place_near(
+    app: &AppHandle,
+    win: &WebviewWindow,
+    anchor: Anchor,
+    dx: f64,
+    gap: f64,
+) -> tauri::Result<()> {
+    let monitor = app.monitor_from_point(anchor.left, anchor.bottom)?;
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
     let margin_px = monitor.as_ref().map(popup_margin).unwrap_or(MARGIN) * scale;
     let size = win.outer_size()?;
@@ -132,23 +165,20 @@ fn place_at_point(app: &AppHandle, win: &WebviewWindow, x: f64, y: f64) -> tauri
         (size.width as f64 - margin_px * 2.0).max(0.0),
         (size.height as f64 - margin_px * 2.0).max(0.0),
     );
-    let (mut card_x, mut card_y) = (x + 12.0, y + 16.0);
+    let (mut card_x, mut card_y) = (anchor.left + dx, anchor.bottom + gap);
     if let Some(m) = monitor {
         let wa = m.work_area();
+        let (left, top) = (wa.position.x as f64, wa.position.y as f64);
         let (right, bottom) = (
             (wa.position.x + wa.size.width as i32) as f64,
             (wa.position.y + wa.size.height as i32) as f64,
         );
-        if card_x + card_w > right {
-            card_x = (right - card_w).max(wa.position.x as f64);
-        }
-        if card_y + card_h > bottom {
-            card_y = (y - 16.0 - card_h).max(wa.position.y as f64);
-        }
+        card_x = clamp_axis(card_x, left, right, card_w);
+        card_y = card_y_near_anchor(anchor.top, anchor.bottom, gap, card_h, top, bottom);
         let outer_w = size.width as f64;
         let outer_h = size.height as f64;
-        let outer_x = clamp_axis(card_x - margin_px, wa.position.x as f64, right, outer_w);
-        let outer_y = clamp_axis(card_y - margin_px, wa.position.y as f64, bottom, outer_h);
+        let outer_x = clamp_axis(card_x - margin_px, left, right, outer_w);
+        let outer_y = clamp_axis(card_y - margin_px, top, bottom, outer_h);
         return win.set_position(PhysicalPosition::new(
             outer_x.round() as i32,
             outer_y.round() as i32,
@@ -158,6 +188,23 @@ fn place_at_point(app: &AppHandle, win: &WebviewWindow, x: f64, y: f64) -> tauri
         (card_x - margin_px).round() as i32,
         (card_y - margin_px).round() as i32,
     ))
+}
+
+/// Карточка идёт под якорь; если снизу рабочей области не помещается — переворачивается наверх.
+fn card_y_near_anchor(
+    anchor_top: f64,
+    anchor_bottom: f64,
+    gap: f64,
+    card_h: f64,
+    work_top: f64,
+    work_bottom: f64,
+) -> f64 {
+    let below = anchor_bottom + gap;
+    if below + card_h <= work_bottom {
+        below
+    } else {
+        (anchor_top - gap - card_h).max(work_top)
+    }
 }
 
 fn size_within_cursor_work_area(
@@ -308,7 +355,34 @@ fn watch_cursor(app: AppHandle, win: WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_axis, fit_logical_size, logical_to_physical_size, margin_for_work_area};
+    use super::{
+        card_y_near_anchor, clamp_axis, fit_logical_size, logical_to_physical_size,
+        margin_for_work_area,
+    };
+
+    #[test]
+    fn card_goes_under_the_anchor_and_flips_above_it_at_the_bottom_edge() {
+        // Выделение 300..340 по Y, карточка 260, рабочая область 0..1080 — влезает снизу.
+        assert_eq!(
+            card_y_near_anchor(300.0, 340.0, 12.0, 260.0, 0.0, 1080.0),
+            352.0
+        );
+        // То же выделение у нижнего края: карточка переворачивается над ним.
+        assert_eq!(
+            card_y_near_anchor(900.0, 940.0, 12.0, 260.0, 0.0, 1080.0),
+            628.0
+        );
+        // Курсорный путь — вырожденный якорь в точке.
+        assert_eq!(
+            card_y_near_anchor(500.0, 500.0, 16.0, 260.0, 0.0, 1080.0),
+            516.0
+        );
+        // Карточка выше всей рабочей области прижимается к её верху, а не уезжает за экран.
+        assert_eq!(
+            card_y_near_anchor(10.0, 300.0, 12.0, 400.0, 0.0, 320.0),
+            0.0
+        );
+    }
 
     #[test]
     fn logical_size_is_limited_by_physical_work_area_at_monitor_dpi() {

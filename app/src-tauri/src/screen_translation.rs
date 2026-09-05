@@ -274,28 +274,15 @@ fn should_restore_focus(before_selector: isize, after_selector: isize) -> bool {
     before_selector != 0 && before_selector == after_selector
 }
 
-#[cfg(windows)]
 fn flush_desktop_composition() -> Result<(), String> {
     unsafe { windows::Win32::Graphics::Dwm::DwmFlush() }
         .map_err(|error| format!("Не удалось обновить изображение рабочего стола: {error}"))
 }
 
-#[cfg(not(windows))]
-fn flush_desktop_composition() -> Result<(), String> {
-    Ok(())
-}
-
-#[cfg(windows)]
 fn foreground_window_id() -> isize {
     unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0 as isize
 }
 
-#[cfg(not(windows))]
-fn foreground_window_id() -> isize {
-    1
-}
-
-#[cfg(windows)]
 fn show_window(window: &WebviewWindow, activate: bool) -> Result<(), String> {
     if activate {
         return window.show().map_err(|error| error.to_string());
@@ -309,11 +296,6 @@ fn show_window(window: &WebviewWindow, activate: bool) -> Result<(), String> {
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     }
     Ok(())
-}
-
-#[cfg(not(windows))]
-fn show_window(window: &WebviewWindow, _activate: bool) -> Result<(), String> {
-    window.show().map_err(|error| error.to_string())
 }
 
 fn emit_ocr_error(app: &AppHandle, request_id: u64, message: String) {
@@ -419,9 +401,13 @@ pub(super) fn run(app: AppHandle, settings: Settings, request_id: u64) {
     if !popup_request_is_current(request_id) {
         return;
     }
-    if let Err(error) =
-        popup::show_at_point(&app, captured.anchor_x as f64, captured.anchor_y as f64)
-    {
+    // Карточка встаёт под выделенной областью, а не поверх распознаваемого текста.
+    let anchor = popup::Anchor::region(
+        captured.left as f64,
+        captured.top as f64,
+        captured.height as f64,
+    );
+    if let Err(error) = popup::show_near(&app, anchor, 0.0, 12.0) {
         if popup_request_is_current(request_id) {
             emit_ocr_error(
                 &app,

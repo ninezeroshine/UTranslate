@@ -7,9 +7,12 @@
 use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
-    sync::{Mutex, OnceLock, TryLockError},
+    sync::{
+        atomic::{AtomicU64, Ordering as AtomicOrdering},
+        Mutex, OnceLock,
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use image::{imageops, RgbImage};
@@ -44,9 +47,50 @@ const REC_BASE_WIDTH: u32 = 320;
 const REC_MAX_WIDTH: u32 = 3_200;
 const REC_BATCH: usize = 6;
 const MAX_CROP_BATCH_PIXELS: u64 = 16 * 1024 * 1024;
+/// Сессии ORT и модели держат около 60 МБ. Пользователь снимает область раз в несколько
+/// минут, поэтому после простоя движок выгружается и грузится заново на следующем запросе.
+const IDLE_UNLOAD_MS: u64 = 3 * 60 * 1000;
+const IDLE_CHECK_INTERVAL: Duration = Duration::from_secs(30);
 
 static ENGINE: OnceLock<Mutex<Option<Engine>>> = OnceLock::new();
 static ORT_READY: OnceLock<Result<(), String>> = OnceLock::new();
+static PROCESS_START: OnceLock<Instant> = OnceLock::new();
+static LAST_USED_MS: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    PROCESS_START
+        .get_or_init(Instant::now)
+        .elapsed()
+        .as_millis() as u64
+}
+
+/// Решение сторожевого потока: движок простаивает дольше порога, пора освободить память.
+fn should_unload(now_ms: u64, last_used_ms: u64) -> bool {
+    now_ms.saturating_sub(last_used_ms) > IDLE_UNLOAD_MS
+}
+
+/// Один сторожевой поток на процесс, запускается при первой загрузке движка.
+/// Мьютекс берётся только через `try_lock`: занятый мьютекс означает идущее распознавание.
+fn spawn_idle_watchdog() {
+    static WATCHDOG: OnceLock<()> = OnceLock::new();
+    WATCHDOG.get_or_init(|| {
+        let _ = thread::Builder::new()
+            .name("utranslate-ocr-idle".to_string())
+            .spawn(|| loop {
+                thread::sleep(IDLE_CHECK_INTERVAL);
+                let Some(mutex) = ENGINE.get() else { continue };
+                if !should_unload(now_ms(), LAST_USED_MS.load(AtomicOrdering::Relaxed)) {
+                    continue;
+                }
+                if let Ok(mut guard) = mutex.try_lock() {
+                    // Метку проверяем ещё раз под замком: запрос мог начаться прямо сейчас.
+                    if should_unload(now_ms(), LAST_USED_MS.load(AtomicOrdering::Relaxed)) {
+                        *guard = None;
+                    }
+                }
+            });
+    });
+}
 
 struct Engine {
     detector: DbNet,
@@ -118,30 +162,33 @@ where
 
     let root = resolve_resource_root(resource_dir)?;
     let mutex = ENGINE.get_or_init(|| Mutex::new(None));
-    let mut guard = loop {
-        if !is_current() {
-            return Err("OCR-запрос отменён".to_string());
-        }
-        match mutex.try_lock() {
-            Ok(guard) => break guard,
-            Err(TryLockError::WouldBlock) => thread::sleep(Duration::from_millis(10)),
-            Err(TryLockError::Poisoned(_)) => {
-                return Err("OCR-сессия недоступна после внутренней ошибки".to_string())
-            }
-        }
-    };
+    if !is_current() {
+        return Err("OCR-запрос отменён".to_string());
+    }
+    // Устаревший запрос отваливается сразу, как только получит замок: ждать в цикле незачем.
+    let mut guard = mutex
+        .lock()
+        .map_err(|_| "OCR-сессия недоступна после внутренней ошибки".to_string())?;
+    if !is_current() {
+        return Err("OCR-запрос отменён".to_string());
+    }
+    LAST_USED_MS.store(now_ms(), AtomicOrdering::Relaxed);
     if guard
         .as_ref()
         .is_none_or(|engine| engine.resource_root != root)
     {
         *guard = Some(Engine::load(root.clone())?);
+        spawn_idle_watchdog();
     }
 
     let image = rgba_to_bgr_image(width, height, rgba)?;
-    guard
+    let result = guard
         .as_mut()
         .expect("engine initialized above")
-        .recognize_image(&image, &is_current)
+        .recognize_image(&image, &is_current);
+    // Отметка после работы: сторожевой поток не должен считать простоем долгое распознавание.
+    LAST_USED_MS.store(now_ms(), AtomicOrdering::Relaxed);
+    result
 }
 
 impl Engine {
@@ -246,11 +293,12 @@ impl Engine {
             } else {
                 1
             };
+            // Удвоение безопасно: ветка работает только для сторон не больше 464 px.
             let scaled = if scale == 2 {
                 imageops::resize(
                     &tile,
-                    tile_width.saturating_mul(2),
-                    tile_height.saturating_mul(2),
+                    tile_width * 2,
+                    tile_height * 2,
                     imageops::FilterType::CatmullRom,
                 )
             } else {
@@ -432,7 +480,8 @@ fn decode_ctc(
     ))
 }
 
-fn checked_rgba_len(width: u32, height: u32) -> Result<usize, String> {
+/// Единственная проверка размера RGBA-буфера в проекте; `screen_capture` зовёт её же.
+pub(crate) fn checked_rgba_len(width: u32, height: u32) -> Result<usize, String> {
     let pixels = u64::from(width)
         .checked_mul(u64::from(height))
         .ok_or_else(|| "Переполнение площади OCR-изображения".to_string())?;
@@ -556,15 +605,10 @@ fn validate_text_box(source: &RgbImage, text_box: &TextBox) -> Result<u64, Strin
         .ok_or_else(|| "Переполнение площади perspective OCR-crop".to_string())
 }
 
+/// Плитка не бывает шире 4096 px, а рамка — 8 px, поэтому сложение не переполняется.
 fn edge_pad(source: &RgbImage, border: u32) -> Result<RgbImage, String> {
-    let width = source
-        .width()
-        .checked_add(border.saturating_mul(2))
-        .ok_or_else(|| "Переполнение ширины после OCR-padding".to_string())?;
-    let height = source
-        .height()
-        .checked_add(border.saturating_mul(2))
-        .ok_or_else(|| "Переполнение высоты после OCR-padding".to_string())?;
+    let width = source.width() + border * 2;
+    let height = source.height() + border * 2;
     let mut padded = RgbImage::new(width, height);
     for y in 0..height {
         let sy = y.saturating_sub(border).min(source.height() - 1);
@@ -747,7 +791,10 @@ fn assemble_reading_order(mut blocks: Vec<LocatedBlock>) -> Result<String, Strin
     Ok(output)
 }
 
-#[cfg(windows)]
+/// Грузит `onnxruntime.dll` заранее и по абсолютному пути, чтобы ort потом открыл ровно этот
+/// модуль. CRT рядом не кладём: сам UTranslate.exe слинкован с `VCRUNTIME140*.dll`, поэтому
+/// у запущенного приложения редист уже установлен, и `LOAD_LIBRARY_SEARCH_SYSTEM32` находит
+/// те же библиотеки в System32.
 fn preload_runtime_dependencies(runtime_dir: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::{
@@ -757,42 +804,28 @@ fn preload_runtime_dependencies(runtime_dir: &Path) -> Result<(), String> {
         },
     };
 
-    for name in [
-        "vcruntime140.dll",
-        "vcruntime140_1.dll",
-        "msvcp140.dll",
-        "msvcp140_1.dll",
-        "onnxruntime_providers_shared.dll",
-        // Load the main runtime last, after all app-local dependencies are resident.
-        // ort then opens this same absolute module path.
-        "onnxruntime.dll",
-    ] {
-        let path = runtime_dir.join(name);
-        if !path.is_file() {
-            return Err(format!(
-                "Не найден OCR runtime dependency: {}",
-                path.display()
-            ));
-        }
-        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-        // SAFETY: `wide` is a valid NUL-terminated absolute path for the duration of the call.
-        // The safe search flags restrict transitive DLL resolution to the loaded DLL directory
-        // and Windows' trusted default directories. Handles intentionally live to process exit.
-        unsafe {
-            LoadLibraryExW(
-                PCWSTR(wide.as_ptr()),
-                None,
-                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
-            )
-        }
-        .map_err(|error| format!("Не удалось безопасно загрузить {}: {error}", path.display()))?;
+    let path = runtime_dir.join("onnxruntime.dll");
+    if !path.is_file() {
+        return Err(format!("Не найден OCR runtime: {}", path.display()));
     }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: `wide` is a valid NUL-terminated absolute path for the duration of the call.
+    // The safe search flags restrict transitive DLL resolution to the loaded DLL directory
+    // and Windows' trusted default directories. The handle intentionally lives to process exit.
+    unsafe {
+        LoadLibraryExW(
+            PCWSTR(wide.as_ptr()),
+            None,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
+        )
+    }
+    .map_err(|error| {
+        format!(
+            "Не удалось загрузить {}: {error}. Установите Visual C++ Redistributable 2015–2022 x64",
+            path.display()
+        )
+    })?;
     Ok(())
-}
-
-#[cfg(not(windows))]
-fn preload_runtime_dependencies(_runtime_dir: &Path) -> Result<(), String> {
-    Err("OCR runtime поддерживается только на Windows".to_string())
 }
 
 #[cfg(test)]
@@ -825,6 +858,15 @@ mod tests {
         assert!(checked_rgba_len(0, 1).is_err());
         assert!(checked_rgba_len(16_384, 16_384).is_err());
         assert_eq!(checked_rgba_len(2, 3).unwrap(), 24);
+    }
+
+    #[test]
+    fn engine_is_released_only_after_three_idle_minutes() {
+        assert!(!should_unload(0, 0));
+        assert!(!should_unload(IDLE_UNLOAD_MS, 0));
+        assert!(should_unload(IDLE_UNLOAD_MS + 1, 0));
+        // Метка из будущего (запрос стартовал между двумя чтениями) не выгружает движок.
+        assert!(!should_unload(1_000, 10_000));
     }
 
     #[test]

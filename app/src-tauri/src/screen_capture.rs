@@ -6,10 +6,16 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// At the limit, the frozen BGRA desktop and returned RGBA crop can briefly use about 512 MiB.
-// Both allocations fail through Result/Win32 errors instead of aborting the process.
-const MAX_CAPTURE_PIXELS: u64 = 64 * 1024 * 1024;
+// Предел размера снимка — общий с OCR: `ocr::checked_rgba_len`. На пределе замороженный
+// BGRA-рабочий стол и вырезанный RGBA-кроп вместе занимают около 512 МиБ; обе аллокации
+// падают через Result/Win32-ошибку, а не убивают процесс.
+use crate::ocr::checked_rgba_len;
+
 const MIN_SELECTION_SIDE: i64 = 3;
+/// Затемнение вне выделения: 46% чёрного.
+const DIM_ALPHA: u8 = 118;
+/// Длительность появления затемнения. Оверлей открывают хоткеем, поэтому ввод работает сразу.
+const FADE_MS: u64 = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedRegion {
@@ -18,8 +24,6 @@ pub struct CapturedRegion {
     pub rgba: Vec<u8>,
     pub left: i32,
     pub top: i32,
-    pub anchor_x: i32,
-    pub anchor_y: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,22 +95,14 @@ impl RectI {
     }
 }
 
-fn checked_rgba_len(width: u32, height: u32) -> Result<usize, String> {
-    let pixels = u64::from(width)
-        .checked_mul(u64::from(height))
-        .ok_or_else(|| "Переполнение площади изображения".to_string())?;
-    if pixels == 0 {
-        return Err("Пустое изображение".to_string());
+/// Ease-out кубикой: затемнение растёт от 0 до [`DIM_ALPHA`] за [`FADE_MS`].
+fn fade_alpha(elapsed_ms: u64) -> u8 {
+    if elapsed_ms >= FADE_MS {
+        return DIM_ALPHA;
     }
-    if pixels > MAX_CAPTURE_PIXELS {
-        return Err(format!(
-            "Изображение слишком велико: {pixels} пикселей (предел {MAX_CAPTURE_PIXELS})"
-        ));
-    }
-    let bytes = pixels
-        .checked_mul(4)
-        .ok_or_else(|| "Переполнение размера RGBA-изображения".to_string())?;
-    usize::try_from(bytes).map_err(|_| "Изображение не помещается в память".to_string())
+    let progress = elapsed_ms as f32 / FADE_MS as f32;
+    let eased = 1.0 - (1.0 - progress).powi(3);
+    (f32::from(DIM_ALPHA) * eased).round() as u8
 }
 
 fn validated_selection(
@@ -138,7 +134,6 @@ fn crop_bgra_top_down(
     pixels: &[u8],
     desktop: RectI,
     selection: RectI,
-    anchor: PointI,
 ) -> Result<CapturedRegion, String> {
     let desktop_width = u32::try_from(desktop.width_i64())
         .map_err(|_| "Недопустимая ширина рабочего стола".to_string())?;
@@ -204,8 +199,6 @@ fn crop_bgra_top_down(
         rgba,
         left: selection.left,
         top: selection.top,
-        anchor_x: anchor.x,
-        anchor_y: anchor.y,
     })
 }
 
@@ -234,7 +227,6 @@ impl Drop for ActiveSelectorGuard {
 /// On Windows the complete capture and window message pump live on a dedicated worker thread.
 /// `Ok(None)` means Escape, right click, focus/capture loss, or a display/DPI change cancelled
 /// the selection. Concurrent selectors are rejected.
-#[cfg(windows)]
 pub fn select_region() -> Result<Option<CapturedRegion>, String> {
     let _active = ActiveSelectorGuard::acquire()?;
     std::thread::Builder::new()
@@ -245,20 +237,17 @@ pub fn select_region() -> Result<Option<CapturedRegion>, String> {
         .map_err(|_| "Поток выбора области аварийно завершился".to_string())?
 }
 
-#[cfg(not(windows))]
-pub fn select_region() -> Result<Option<CapturedRegion>, String> {
-    Err("Выбор области экрана поддерживается только в Windows".to_string())
-}
-
-#[cfg(windows)]
 mod platform {
-    use super::{crop_bgra_top_down, validated_selection, CapturedRegion, PointI, RectI};
+    use super::{
+        crop_bgra_top_down, fade_alpha, validated_selection, CapturedRegion, PointI, RectI, FADE_MS,
+    };
     use std::{
         ffi::c_void,
         mem::{size_of, zeroed},
         panic::{catch_unwind, AssertUnwindSafe},
         ptr::null_mut,
         slice,
+        time::Instant,
     };
     use windows::{
         core::{w, Error as WinError, BOOL, PCWSTR},
@@ -266,31 +255,34 @@ mod platform {
             Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
             Graphics::Gdi::{
                 AlphaBlend, BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC,
-                CreateDIBSection, CreatePen, DeleteDC, DeleteObject, DrawTextW, EndPaint,
-                EnumDisplayMonitors, GetDC, GetStockObject, InvalidateRect, LineTo, MoveToEx,
-                PatBlt, ReleaseDC, SelectObject, SetBkMode, SetTextColor, UpdateWindow,
-                AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLACKNESS, BLENDFUNCTION,
-                CAPTUREBLT, DEFAULT_GUI_FONT, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_TOP,
-                HBITMAP, HDC, HGDIOBJ, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
+                CreateDIBSection, CreateFontW, CreatePen, CreateSolidBrush, DeleteDC, DeleteObject,
+                DrawTextW, EndPaint, EnumDisplayMonitors, GetDC, GetStockObject, InvalidateRect,
+                LineTo, MoveToEx, PatBlt, ReleaseDC, RoundRect, SelectObject, SetBkMode,
+                SetTextColor, UpdateWindow, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
+                BLACKNESS, BLENDFUNCTION, CAPTUREBLT, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
+                DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DT_CALCRECT, DT_LEFT, DT_NOCLIP,
+                DT_SINGLELINE, DT_TOP, FF_DONTCARE, FW_SEMIBOLD, HBITMAP, HDC, HFONT, HGDIOBJ,
+                NULL_PEN, OUT_TT_PRECIS, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
             },
             System::LibraryLoader::GetModuleHandleW,
             UI::{
                 HiDpi::{
-                    SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT,
+                    GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT,
                     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
                 },
                 Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, SetFocus, VK_ESCAPE},
                 WindowsAndMessaging::{
                     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-                    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, LoadCursorW, PostQuitMessage,
-                    RegisterClassExW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
-                    ShowWindow, TranslateMessage, UnregisterClassW, CREATESTRUCTW, CS_HREDRAW,
-                    CS_VREDRAW, GWLP_USERDATA, HWND_TOPMOST, IDC_CROSS, MSG, SM_CXVIRTUALSCREEN,
-                    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SWP_NOACTIVATE,
-                    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE, WM_ACTIVATE,
-                    WM_CAPTURECHANGED, WM_CLOSE, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
-                    WM_ERASEBKGND, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP,
-                    WM_MOUSEMOVE, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_RBUTTONDOWN, WNDCLASSEXW,
+                    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, KillTimer, LoadCursorW,
+                    PostQuitMessage, RegisterClassExW, SetForegroundWindow, SetTimer,
+                    SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage,
+                    UnregisterClassW, CREATESTRUCTW, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA,
+                    HWND_TOPMOST, IDC_CROSS, MSG, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                    SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+                    SWP_SHOWWINDOW, SW_SHOWNOACTIVATE, WM_ACTIVATE, WM_CAPTURECHANGED, WM_CLOSE,
+                    WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ERASEBKGND, WM_KEYDOWN,
+                    WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCREATE,
+                    WM_NCDESTROY, WM_PAINT, WM_RBUTTONDOWN, WM_TIMER, WNDCLASSEXW,
                     WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
                 },
             },
@@ -299,13 +291,21 @@ mod platform {
 
     const CLASS_NAME: PCWSTR = w!("UTranslate.NativeScreenSelector");
     const HINT: &str = "Выделите область с текстом · Esc — отмена";
-    const ACCENT: COLORREF = COLORREF(0x00_c7_d6_5e);
-    const WHITE: COLORREF = COLORREF(0x00_ff_ff_ff);
-    const SHADOW: COLORREF = COLORREF(0x00_20_20_20);
+    /// Палитра «туман и вода» тёмной темы (см. app/src/index.css). COLORREF — это 0x00BBGGRR.
+    /// `--water` #63b6c6 — рамка выделения.
+    const WATER: COLORREF = COLORREF(0x00_c6_b6_63);
+    /// `--ink` светлой темы #1b252a — заливка пилюль подсказки и размера.
+    const PILL_BG: COLORREF = COLORREF(0x00_2a_25_1b);
+    /// `--ink` тёмной темы #e4edf0 — текст на пилюле.
+    const PILL_TEXT: COLORREF = COLORREF(0x00_f0_ed_e4);
+    /// `--ink-2` тёмной темы #9badb5 — прицел.
+    const CROSSHAIR: COLORREF = COLORREF(0x00_b5_ad_9b);
+    /// Таймер появления затемнения. Живёт на одном окне, остальные перерисовываются вместе с ним.
+    const FADE_TIMER_ID: usize = 1;
 
     #[derive(Debug, Clone, Copy)]
     enum Outcome {
-        Accepted { rect: RectI, anchor: PointI },
+        Accepted { rect: RectI },
         Cancelled,
     }
 
@@ -319,11 +319,114 @@ mod platform {
         dragging: bool,
         outcome: Option<Outcome>,
         callback_panicked: bool,
+        opened_at: Instant,
+        dim_alpha: u8,
     }
 
     struct WindowData {
         state: *mut SelectorState,
         monitor: RectI,
+        buffer: Option<BackBuffer>,
+    }
+
+    /// Свой back-buffer на каждое окно: кадр собирается целиком в памяти и уезжает на экран
+    /// одним BitBlt, иначе на каждом WM_MOUSEMOVE видно мерцание.
+    struct BackBuffer {
+        dc: HDC,
+        bitmap: HBITMAP,
+        old_bitmap: HGDIOBJ,
+        width: i32,
+        height: i32,
+    }
+
+    impl BackBuffer {
+        unsafe fn create(reference: HDC, width: i32, height: i32) -> Option<Self> {
+            let dc = CreateCompatibleDC(Some(reference));
+            if dc.is_invalid() {
+                return None;
+            }
+            let bitmap = CreateCompatibleBitmap(reference, width, height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(dc);
+                return None;
+            }
+            let old_bitmap = SelectObject(dc, HGDIOBJ(bitmap.0));
+            if old_bitmap.is_invalid() {
+                let _ = DeleteObject(HGDIOBJ(bitmap.0));
+                let _ = DeleteDC(dc);
+                return None;
+            }
+            Some(Self {
+                dc,
+                bitmap,
+                old_bitmap,
+                width,
+                height,
+            })
+        }
+    }
+
+    impl Drop for BackBuffer {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = SelectObject(self.dc, self.old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(self.bitmap.0));
+                let _ = DeleteDC(self.dc);
+            }
+        }
+    }
+
+    impl WindowData {
+        /// Буфер создаётся при первом paint (нужен совместимый DC) и переживает перерисовки.
+        unsafe fn buffer_dc(&mut self, reference: HDC, width: i32, height: i32) -> Option<HDC> {
+            if !matches!(&self.buffer, Some(buffer) if buffer.width == width && buffer.height == height)
+            {
+                self.buffer = BackBuffer::create(reference, width, height);
+            }
+            self.buffer.as_ref().map(|buffer| buffer.dc)
+        }
+    }
+
+    /// Шрифт интерфейса под DPI конкретного окна; освобождается по выходе из paint.
+    struct ScopedFont {
+        font: HFONT,
+    }
+
+    impl ScopedFont {
+        unsafe fn create(points: i32, dpi: u32) -> Option<Self> {
+            // -MulDiv(points, dpi, 72): отрицательная высота задаёт кегль, а не bounding box.
+            let height = -(points * dpi.max(1) as i32 / 72);
+            let font = CreateFontW(
+                height,
+                0,
+                0,
+                0,
+                FW_SEMIBOLD.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_TT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                (DEFAULT_PITCH.0 | FF_DONTCARE.0) as u32,
+                w!("Segoe UI"),
+            );
+            (!font.is_invalid()).then_some(Self { font })
+        }
+    }
+
+    impl Drop for ScopedFont {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = DeleteObject(HGDIOBJ(self.font.0));
+            }
+        }
+    }
+
+    /// Отступы и радиусы в логических пикселях → физические под DPI окна.
+    fn scaled(value: i32, dpi: u32) -> i32 {
+        (value * dpi.max(1) as i32 / 96).max(1)
     }
 
     /// Keeps HWND userdata valid while windows are destroyed, including on early returns.
@@ -604,6 +707,8 @@ mod platform {
                 dragging: false,
                 outcome: None,
                 callback_panicked: false,
+                opened_at: Instant::now(),
+                dim_alpha: 0,
             });
             let state_ptr: *mut SelectorState = &mut *state;
             let mut window_data: Vec<Box<WindowData>> = Vec::with_capacity(monitors.len());
@@ -618,6 +723,7 @@ mod platform {
                 let mut data = Box::new(WindowData {
                     state: state_ptr,
                     monitor,
+                    buffer: None,
                 });
                 let data_ptr: *mut WindowData = &mut *data;
                 let hwnd = CreateWindowExW(
@@ -664,6 +770,9 @@ mod platform {
                 .ok_or_else(|| "Не создано окно селектора".to_string())?;
             let _ = SetForegroundWindow(focus_window);
             let _ = SetFocus(Some(focus_window));
+            // Появление затемнения. Мышь и Esc работают, пока идёт fade.
+            state.opened_at = Instant::now();
+            SetTimer(Some(focus_window), FADE_TIMER_ID, 10, None);
 
             let message_error = message_loop();
             overlay_cleanup.destroy_now();
@@ -675,9 +784,9 @@ mod platform {
 
             match state.outcome.unwrap_or(Outcome::Cancelled) {
                 Outcome::Cancelled => Ok(None),
-                Outcome::Accepted { rect, anchor } => {
+                Outcome::Accepted { rect } => {
                     let pixels = state.snapshot.pixels();
-                    crop_bgra_top_down(pixels, desktop, rect, anchor).map(Some)
+                    crop_bgra_top_down(pixels, desktop, rect).map(Some)
                 }
             }
         }
@@ -741,6 +850,12 @@ mod platform {
             return DefWindowProcW(hwnd, message, wparam, lparam);
         }
         if message == WM_NCDESTROY {
+            let data_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WindowData;
+            if let Some(data) = data_ptr.as_mut() {
+                // GDI-объекты буфера освобождаются вместе с окном, а не в конце селектора.
+                data.buffer = None;
+            }
+            let _ = KillTimer(Some(hwnd), FADE_TIMER_ID);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             return DefWindowProcW(hwnd, message, wparam, lparam);
         }
@@ -749,14 +864,24 @@ mod platform {
         let Some(data) = data_ptr.as_mut() else {
             return DefWindowProcW(hwnd, message, wparam, lparam);
         };
-        let Some(state) = data.state.as_mut() else {
+        let state_ptr = data.state;
+        let Some(state) = state_ptr.as_mut() else {
             return DefWindowProcW(hwnd, message, wparam, lparam);
         };
 
         match message {
             WM_ERASEBKGND => LRESULT(1),
             WM_PAINT => {
-                paint(hwnd, data.monitor, state);
+                paint(hwnd, data, state);
+                LRESULT(0)
+            }
+            WM_TIMER if wparam.0 == FADE_TIMER_ID => {
+                let elapsed = state.opened_at.elapsed().as_millis() as u64;
+                state.dim_alpha = fade_alpha(elapsed);
+                if elapsed >= FADE_MS {
+                    let _ = KillTimer(Some(hwnd), FADE_TIMER_ID);
+                }
+                invalidate_all(state);
                 LRESULT(0)
             }
             WM_LBUTTONDOWN => {
@@ -787,7 +912,7 @@ mod platform {
                             state.cursor = Some(current);
                             let drag = RectI::from_drag(anchor, current);
                             match validated_selection(drag, state.desktop, &state.monitors) {
-                                Ok(Some(rect)) => finish(state, Outcome::Accepted { rect, anchor }),
+                                Ok(Some(rect)) => finish(state, Outcome::Accepted { rect }),
                                 Ok(None) => {
                                     // A click or tiny accidental drag leaves the selector open.
                                     state.anchor = None;
@@ -854,14 +979,33 @@ mod platform {
         }
     }
 
-    unsafe fn paint(hwnd: HWND, monitor: RectI, state: &SelectorState) {
+    unsafe fn paint(hwnd: HWND, data: &mut WindowData, state: &SelectorState) {
         let mut paint: PAINTSTRUCT = zeroed();
         let hdc = BeginPaint(hwnd, &mut paint);
         if hdc.is_invalid() {
             return;
         }
+        let monitor = data.monitor;
         let width = i32::try_from(monitor.width_i64()).unwrap_or(0);
         let height = i32::try_from(monitor.height_i64()).unwrap_or(0);
+        let dpi = GetDpiForWindow(hwnd);
+        // Не получилось создать буфер — рисуем прямо в окно: мерцание лучше пустого экрана.
+        let target = data.buffer_dc(hdc, width, height).unwrap_or(hdc);
+        draw_frame(target, monitor, state, width, height, dpi);
+        if target != hdc {
+            let _ = BitBlt(hdc, 0, 0, width, height, Some(target), 0, 0, SRCCOPY);
+        }
+        let _ = EndPaint(hwnd, &paint);
+    }
+
+    unsafe fn draw_frame(
+        hdc: HDC,
+        monitor: RectI,
+        state: &SelectorState,
+        width: i32,
+        height: i32,
+        dpi: u32,
+    ) {
         let source_x = monitor.left - state.desktop.left;
         let source_y = monitor.top - state.desktop.top;
         let _ = BitBlt(
@@ -875,37 +1019,40 @@ mod platform {
             source_y,
             SRCCOPY,
         );
-        let blend = BLENDFUNCTION {
-            BlendOp: AC_SRC_OVER as u8,
-            BlendFlags: 0,
-            SourceConstantAlpha: 112,
-            AlphaFormat: 0,
-        };
-        let _ = AlphaBlend(
-            hdc,
-            0,
-            0,
-            width,
-            height,
-            state.snapshot.dim_dc,
-            0,
-            0,
-            1,
-            1,
-            blend,
-        );
+        if state.dim_alpha > 0 {
+            let blend = BLENDFUNCTION {
+                BlendOp: AC_SRC_OVER as u8,
+                BlendFlags: 0,
+                SourceConstantAlpha: state.dim_alpha,
+                AlphaFormat: 0,
+            };
+            let _ = AlphaBlend(
+                hdc,
+                0,
+                0,
+                width,
+                height,
+                state.snapshot.dim_dc,
+                0,
+                0,
+                1,
+                1,
+                blend,
+            );
+        }
 
-        if let (Some(anchor), Some(cursor)) = (state.anchor, state.cursor) {
-            let selection = RectI::from_drag(anchor, cursor);
+        let selection = match (state.anchor, state.cursor) {
+            (Some(anchor), Some(cursor)) => Some(RectI::from_drag(anchor, cursor)),
+            _ => None,
+        };
+        if let Some(selection) = selection {
             if let Some(visible) = selection.intersect(monitor) {
-                let local_left = visible.left - monitor.left;
-                let local_top = visible.top - monitor.top;
                 let visible_width = i32::try_from(visible.width_i64()).unwrap_or(0);
                 let visible_height = i32::try_from(visible.height_i64()).unwrap_or(0);
                 let _ = BitBlt(
                     hdc,
-                    local_left,
-                    local_top,
+                    visible.left - monitor.left,
+                    visible.top - monitor.top,
                     visible_width,
                     visible_height,
                     Some(state.snapshot.dc),
@@ -914,20 +1061,172 @@ mod platform {
                     SRCCOPY,
                 );
             }
-            draw_selection_border(hdc, monitor, selection);
-        }
-        if let Some(cursor) = state.cursor.filter(|point| monitor.contains(*point)) {
+            draw_selection_border(hdc, monitor, selection, dpi);
+        } else if let Some(cursor) = state.cursor.filter(|point| monitor.contains(*point)) {
+            // Прицел нужен только до первого нажатия: при активном выделении он спорит с рамкой.
             draw_crosshair(hdc, monitor, cursor, width, height);
         }
-        draw_hint(hdc, width);
-        let _ = EndPaint(hwnd, &paint);
+
+        if let Some(font) = ScopedFont::create(13, dpi) {
+            let padding = scaled(24, dpi);
+            draw_pill(
+                hdc,
+                font.font,
+                HINT,
+                PillAnchor::TopCenter {
+                    center_x: width / 2,
+                    top: padding,
+                },
+                dpi,
+            );
+        }
+        if let Some(selection) = selection {
+            draw_size_badge(hdc, monitor, selection, width, height, dpi);
+        }
     }
 
-    unsafe fn draw_selection_border(hdc: HDC, monitor: RectI, selection: RectI) {
+    /// Бейдж размера у нижнего правого угла выделения; на краю монитора уходит внутрь угла.
+    unsafe fn draw_size_badge(
+        hdc: HDC,
+        monitor: RectI,
+        selection: RectI,
+        width: i32,
+        height: i32,
+        dpi: u32,
+    ) {
+        // Бейдж рисует только окно того монитора, где лежит правый нижний угол выделения:
+        // иначе выделение через границу экранов показало бы размер дважды.
+        let corner = PointI {
+            x: selection.right - 1,
+            y: selection.bottom - 1,
+        };
+        if !monitor.contains(corner) {
+            return;
+        }
         let Some(visible) = selection.intersect(monitor) else {
             return;
         };
-        let pen = CreatePen(PS_SOLID, 2, ACCENT);
+        let Some(font) = ScopedFont::create(11, dpi) else {
+            return;
+        };
+        let label = format!("{} × {}", selection.width_i64(), selection.height_i64());
+        let gap = scaled(8, dpi);
+        draw_pill(
+            hdc,
+            font.font,
+            &label,
+            PillAnchor::BottomRight {
+                right: visible.right - monitor.left,
+                bottom: visible.bottom - monitor.top,
+                gap,
+                limit_width: width,
+                limit_height: height,
+            },
+            dpi,
+        );
+    }
+
+    enum PillAnchor {
+        TopCenter {
+            center_x: i32,
+            top: i32,
+        },
+        BottomRight {
+            right: i32,
+            bottom: i32,
+            gap: i32,
+            limit_width: i32,
+            limit_height: i32,
+        },
+    }
+
+    /// Пилюля палитры «мягкое бенто»: скругление в высоту, ровная тёмная заливка без тени —
+    /// у GDI нет альфы, а на затемнённом снимке такая пилюля читается сама.
+    unsafe fn draw_pill(hdc: HDC, font: HFONT, text: &str, anchor: PillAnchor, dpi: u32) {
+        let old_font = SelectObject(hdc, HGDIOBJ(font.0));
+        let mut measured: Vec<u16> = text.encode_utf16().collect();
+        let mut measure = RECT::default();
+        let _ = DrawTextW(
+            hdc,
+            &mut measured,
+            &mut measure,
+            DT_CALCRECT | DT_SINGLELINE | DT_LEFT,
+        );
+        let pad_x = scaled(14, dpi);
+        let pad_y = scaled(8, dpi);
+        let pill_w = measure.right - measure.left + pad_x * 2;
+        let pill_h = measure.bottom - measure.top + pad_y * 2;
+        let (left, top) = match anchor {
+            PillAnchor::TopCenter { center_x, top } => ((center_x - pill_w / 2).max(0), top),
+            PillAnchor::BottomRight {
+                right,
+                bottom,
+                gap,
+                limit_width,
+                limit_height,
+            } => {
+                let outside_top = bottom + gap;
+                let top = if outside_top + pill_h <= limit_height {
+                    outside_top
+                } else {
+                    bottom - gap - pill_h
+                };
+                (
+                    (right - pill_w).min(limit_width - pill_w).max(0),
+                    top.max(0),
+                )
+            }
+        };
+
+        let brush = CreateSolidBrush(PILL_BG);
+        if brush.is_invalid() {
+            if !old_font.is_invalid() {
+                let _ = SelectObject(hdc, old_font);
+            }
+            return;
+        }
+        let old_brush = SelectObject(hdc, HGDIOBJ(brush.0));
+        let old_pen = SelectObject(hdc, GetStockObject(NULL_PEN));
+        let _ = RoundRect(hdc, left, top, left + pill_w, top + pill_h, pill_h, pill_h);
+        if !old_pen.is_invalid() {
+            let _ = SelectObject(hdc, old_pen);
+        }
+        if !old_brush.is_invalid() {
+            let _ = SelectObject(hdc, old_brush);
+        }
+        let _ = DeleteObject(HGDIOBJ(brush.0));
+
+        let old_mode = SetBkMode(hdc, TRANSPARENT);
+        let _ = SetTextColor(hdc, PILL_TEXT);
+        let mut drawn: Vec<u16> = text.encode_utf16().collect();
+        let mut text_rect = RECT {
+            left: left + pad_x,
+            top: top + pad_y,
+            right: left + pill_w - pad_x,
+            bottom: top + pill_h - pad_y,
+        };
+        let _ = DrawTextW(
+            hdc,
+            &mut drawn,
+            &mut text_rect,
+            DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOCLIP,
+        );
+        if old_mode > 0 {
+            let _ = SetBkMode(
+                hdc,
+                windows::Win32::Graphics::Gdi::BACKGROUND_MODE(old_mode as u32),
+            );
+        }
+        if !old_font.is_invalid() {
+            let _ = SelectObject(hdc, old_font);
+        }
+    }
+
+    unsafe fn draw_selection_border(hdc: HDC, monitor: RectI, selection: RectI, dpi: u32) {
+        let Some(visible) = selection.intersect(monitor) else {
+            return;
+        };
+        let pen = CreatePen(PS_SOLID, scaled(2, dpi), WATER);
         if pen.is_invalid() {
             return;
         }
@@ -948,7 +1247,7 @@ mod platform {
     }
 
     unsafe fn draw_crosshair(hdc: HDC, monitor: RectI, cursor: PointI, width: i32, height: i32) {
-        let pen = CreatePen(PS_SOLID, 1, WHITE);
+        let pen = CreatePen(PS_SOLID, 1, CROSSHAIR);
         if pen.is_invalid() {
             return;
         }
@@ -963,40 +1262,6 @@ mod platform {
             let _ = SelectObject(hdc, old);
         }
         let _ = DeleteObject(HGDIOBJ(pen.0));
-    }
-
-    unsafe fn draw_hint(hdc: HDC, width: i32) {
-        let font = GetStockObject(DEFAULT_GUI_FONT);
-        let old_font = SelectObject(hdc, font);
-        let old_mode = SetBkMode(hdc, TRANSPARENT);
-        let mut shadow_rect = RECT {
-            left: 1,
-            top: 17,
-            right: width + 1,
-            bottom: 53,
-        };
-        let mut text_rect = RECT {
-            left: 0,
-            top: 16,
-            right: width,
-            bottom: 52,
-        };
-        let format = DT_CENTER | DT_TOP | DT_SINGLELINE;
-        let mut shadow: Vec<u16> = HINT.encode_utf16().collect();
-        let _ = SetTextColor(hdc, SHADOW);
-        let _ = DrawTextW(hdc, &mut shadow, &mut shadow_rect, format);
-        let mut text: Vec<u16> = HINT.encode_utf16().collect();
-        let _ = SetTextColor(hdc, WHITE);
-        let _ = DrawTextW(hdc, &mut text, &mut text_rect, format);
-        if old_mode > 0 {
-            let _ = SetBkMode(
-                hdc,
-                windows::Win32::Graphics::Gdi::BACKGROUND_MODE(old_mode as u32),
-            );
-        }
-        if !old_font.is_invalid() {
-            let _ = SelectObject(hdc, old_font);
-        }
     }
 
     unsafe fn cursor_position() -> Result<PointI, String> {
@@ -1126,15 +1391,10 @@ mod tests {
     fn crop_converts_bgra_to_opaque_rgba_without_flipping_rows() {
         // Top row: red, green. Bottom row: blue, white. Alpha bytes are intentionally varied.
         let pixels = [0, 0, 255, 0, 0, 255, 0, 17, 255, 0, 0, 99, 255, 255, 255, 1];
-        let result = crop_bgra_top_down(
-            &pixels,
-            rect(-1, -1, 1, 1),
-            rect(-1, -1, 1, 1),
-            PointI { x: -1, y: -1 },
-        )
-        .unwrap();
+        let result = crop_bgra_top_down(&pixels, rect(-1, -1, 1, 1), rect(-1, -1, 1, 1)).unwrap();
         assert_eq!(result.width, 2);
         assert_eq!(result.height, 2);
+        assert_eq!((result.left, result.top), (-1, -1));
         assert_eq!(
             result.rgba,
             [255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,]
@@ -1143,13 +1403,18 @@ mod tests {
 
     #[test]
     fn crop_rejects_short_source_buffer() {
-        let error = crop_bgra_top_down(
-            &[0; 15],
-            rect(0, 0, 2, 2),
-            rect(0, 0, 2, 2),
-            PointI { x: 0, y: 0 },
-        )
-        .unwrap_err();
+        let error = crop_bgra_top_down(&[0; 15], rect(0, 0, 2, 2), rect(0, 0, 2, 2)).unwrap_err();
         assert!(error.contains("короче"));
+    }
+
+    #[test]
+    fn dimming_eases_out_and_stops_at_the_final_alpha() {
+        assert_eq!(fade_alpha(0), 0);
+        assert_eq!(fade_alpha(FADE_MS), DIM_ALPHA);
+        assert_eq!(fade_alpha(FADE_MS * 5), DIM_ALPHA);
+        // Ease-out: половина времени даёт заметно больше половины затемнения.
+        let half = fade_alpha(FADE_MS / 2);
+        assert!(half > DIM_ALPHA / 2 && half < DIM_ALPHA);
+        assert!(fade_alpha(10) < fade_alpha(20));
     }
 }

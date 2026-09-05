@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, lstat, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const started = Date.now();
 const toolsDir = dirname(fileURLToPath(import.meta.url));
 const repoDir = resolve(toolsDir, "..");
 const spec = JSON.parse(await readFile(join(toolsDir, "ocr", "manifest.json"), "utf8"));
@@ -13,65 +14,50 @@ const resourceDir = join(repoDir, "app", "src-tauri", "resources", "ocr");
 const modelDir = join(resourceDir, "models");
 const runtimeDir = join(resourceDir, "runtime");
 const licenseDir = join(resourceDir, "licenses");
+const generatedPath = join(resourceDir, "manifest.generated.json");
 
 if (process.platform !== "win32") {
   throw new Error("OCR resources are prepared only for the Windows target");
 }
 
-function sameWindowsPath(left, right) {
-  return resolve(left).toLowerCase() === resolve(right).toLowerCase();
-}
+// bsdtar из System32 распаковывает и .tar, и .zip. Явный путь, потому что в PATH
+// разработчика может стоять GNU tar из MSYS/Git, а он ломается о "C:" в аргументе.
+const tarExe = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+const licenseNames = [
+  "PaddleOCR-LICENSE.txt",
+  "ONNXRuntime-LICENSE.txt",
+  "ONNXRuntime-ThirdPartyNotices.txt",
+  "APACHE-2.0.txt",
+];
 
-function isStrictChild(root, target) {
-  const rel = relative(resolve(root), resolve(target));
-  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
-}
-
-async function verifyPlainDirectory(path) {
-  const info = await lstat(path);
-  if (!info.isDirectory() || info.isSymbolicLink()) {
-    throw new Error(`Refusing unsafe generated path (not a plain directory): ${path}`);
-  }
-  const actual = await realpath(path);
-  if (!sameWindowsPath(actual, path)) {
-    throw new Error(`Refusing generated path redirected by a junction: ${path} -> ${actual}`);
-  }
-}
-
-async function recreateGeneratedChild(knownRoot, target) {
-  const absoluteRoot = resolve(knownRoot);
-  const absoluteTarget = resolve(target);
-  if (!isStrictChild(absoluteRoot, absoluteTarget)) {
-    throw new Error(`Refusing recursive operation outside generated root: ${absoluteTarget}`);
-  }
-  await mkdir(absoluteRoot, { recursive: true });
-  await verifyPlainDirectory(absoluteRoot);
-
-  let current = absoluteRoot;
-  for (const component of relative(absoluteRoot, absoluteTarget).split(sep)) {
-    current = join(current, component);
-    if (existsSync(current)) {
-      const info = await lstat(current);
-      if (info.isSymbolicLink()) {
-        throw new Error(`Refusing generated path containing a junction: ${current}`);
-      }
-      const actual = await realpath(current);
-      if (!sameWindowsPath(actual, current) || !isStrictChild(absoluteRoot, actual)) {
-        throw new Error(`Refusing generated path outside known root: ${current} -> ${actual}`);
-      }
-    }
-  }
-
-  await rm(absoluteTarget, { recursive: true, force: true });
-  await mkdir(absoluteTarget, { recursive: true });
-}
-
-await mkdir(cacheDir, { recursive: true });
-await Promise.all([
-  recreateGeneratedChild(resourceDir, modelDir),
-  recreateGeneratedChild(resourceDir, runtimeDir),
-  recreateGeneratedChild(resourceDir, licenseDir),
-]);
+// Пять файлов, ради которых существует скрипт. Хэши — пины из manifest.json.
+const targets = [
+  {
+    path: join(modelDir, "ppocrv5_mobile_det.onnx"),
+    sha256: spec.artifacts.detArchive.modelSha256,
+    bytes: spec.artifacts.detArchive.modelBytes,
+  },
+  {
+    path: join(modelDir, "ppocrv5_eslav_rec.onnx"),
+    sha256: spec.artifacts.recArchive.modelSha256,
+    bytes: spec.artifacts.recArchive.modelBytes,
+  },
+  {
+    path: join(modelDir, "ppocrv5_eslav_dict.txt"),
+    sha256: spec.artifacts.dict.sha256,
+    bytes: spec.artifacts.dict.bytes,
+  },
+  {
+    path: join(runtimeDir, "onnxruntime.dll"),
+    sha256: spec.artifacts.ortArchive.dllSha256,
+    bytes: 14186016,
+  },
+  {
+    path: join(runtimeDir, "onnxruntime_providers_shared.dll"),
+    sha256: spec.artifacts.ortArchive.providersSha256,
+    bytes: 22088,
+  },
+];
 
 function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
@@ -82,6 +68,38 @@ async function verify(path, expectedHash, expectedBytes) {
   const info = await stat(path);
   if (expectedBytes !== undefined && info.size !== expectedBytes) return false;
   return sha256(await readFile(path)) === expectedHash.toLowerCase();
+}
+
+/// rm -rf + mkdir с единственной защитой: путь обязан лежать строго внутри известного корня.
+async function resetDir(knownRoot, target) {
+  const root = resolve(knownRoot);
+  const absolute = resolve(target);
+  const rel = relative(root, absolute);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`Refusing recursive operation outside ${root}: ${absolute}`);
+  }
+  await rm(absolute, { recursive: true, force: true });
+  await mkdir(absolute, { recursive: true });
+}
+
+// Быстрый путь: скрипт зовут из beforeDevCommand и beforeBuildCommand при каждом запуске.
+async function everythingIsInPlace() {
+  if (!existsSync(generatedPath)) return false;
+  if (licenseNames.some((name) => !existsSync(join(licenseDir, name)))) return false;
+  for (const target of targets) {
+    if (!(await verify(target.path, target.sha256, target.bytes))) return false;
+  }
+  // Лишний файл в runtime/ (например, CRT из прошлых сборок) чинится полным путём:
+  // LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR предпочтёт его системному.
+  const runtimeFiles = await readdir(runtimeDir);
+  return runtimeFiles.length === 2;
+}
+
+if (await everythingIsInPlace()) {
+  console.log(
+    `OCR resources already prepared: ORT ${spec.versions.onnxRuntime}, PP-OCRv5 det+eslav rec (checked in ${Date.now() - started} ms)`,
+  );
+  process.exit(0);
 }
 
 async function downloadPinned(name, artifact) {
@@ -104,12 +122,22 @@ async function downloadPinned(name, artifact) {
 async function copyVerified(source, target, hash, bytes) {
   if (!(await verify(source, hash, bytes))) throw new Error(`Integrity check failed for ${source}`);
   await copyFile(source, target);
-  if (!(await verify(target, hash, bytes))) throw new Error(`Copied file failed verification: ${target}`);
+  if (!(await verify(target, hash, bytes))) {
+    throw new Error(`Copied file failed verification: ${target}`);
+  }
 }
 
-function run(file, args, options = {}) {
-  execFileSync(file, args, { stdio: "pipe", windowsHide: true, ...options });
+function untar(archive, destination, members = []) {
+  execFileSync(tarExe, ["-xf", archive, "-C", destination, ...members], {
+    stdio: "pipe",
+    windowsHide: true,
+  });
 }
+
+await mkdir(cacheDir, { recursive: true });
+await resetDir(resourceDir, modelDir);
+await resetDir(resourceDir, runtimeDir);
+await resetDir(resourceDir, licenseDir);
 
 const detTar = await downloadPinned("ppocrv5-det.tar", spec.artifacts.detArchive);
 const recTar = await downloadPinned("ppocrv5-eslav-rec.tar", spec.artifacts.recArchive);
@@ -117,13 +145,15 @@ const dict = await downloadPinned("ppocrv5-eslav-dict.txt", spec.artifacts.dict)
 const ortZip = await downloadPinned("onnxruntime-win-x64-1.23.2.zip", spec.artifacts.ortArchive);
 
 const extracted = join(cacheDir, "extracted");
-await recreateGeneratedChild(cacheDir, extracted);
-run("tar.exe", ["-xf", detTar, "-C", extracted]);
-run("tar.exe", ["-xf", recTar, "-C", extracted]);
-run("pwsh.exe", [
-  "-NoProfile", "-NonInteractive", "-Command",
-  "Expand-Archive -LiteralPath $env:OCR_ZIP -DestinationPath $env:OCR_DST -Force",
-], { env: { ...process.env, OCR_ZIP: ortZip, OCR_DST: extracted } });
+await resetDir(cacheDir, extracted);
+untar(detTar, extracted);
+untar(recTar, extracted);
+const ortLibDir = `${spec.artifacts.ortArchive.directory}/lib`;
+// Из zip достаём только две библиотеки: рядом лежат .pdb на 380 МБ, они не нужны.
+untar(ortZip, extracted, [
+  `${ortLibDir}/onnxruntime.dll`,
+  `${ortLibDir}/onnxruntime_providers_shared.dll`,
+]);
 
 await copyVerified(
   join(extracted, spec.artifacts.detArchive.member),
@@ -137,56 +167,26 @@ await copyVerified(
   spec.artifacts.recArchive.modelSha256,
   spec.artifacts.recArchive.modelBytes,
 );
-await copyVerified(dict, join(modelDir, "ppocrv5_eslav_dict.txt"), spec.artifacts.dict.sha256, spec.artifacts.dict.bytes);
+await copyVerified(
+  dict,
+  join(modelDir, "ppocrv5_eslav_dict.txt"),
+  spec.artifacts.dict.sha256,
+  spec.artifacts.dict.bytes,
+);
 
 const ortLib = join(extracted, spec.artifacts.ortArchive.directory, "lib");
-await copyVerified(join(ortLib, "onnxruntime.dll"), join(runtimeDir, "onnxruntime.dll"), spec.artifacts.ortArchive.dllSha256, 14186016);
-await copyVerified(join(ortLib, "onnxruntime_providers_shared.dll"), join(runtimeDir, "onnxruntime_providers_shared.dll"), spec.artifacts.ortArchive.providersSha256, 22088);
-
-const vswhere = "C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe";
-if (!existsSync(vswhere)) throw new Error("Visual Studio Build Tools with VC Redistributable files are required");
-const installation = execFileSync(vswhere, ["-latest", "-products", "*", "-property", "installationPath"], {
-  encoding: "utf8", windowsHide: true,
-}).trim();
-if (!installation) throw new Error("No Visual Studio installation with redistributable files was found");
-
-const redistRoot = join(installation, "VC", "Redist", "MSVC");
-const redistPath = execFileSync("pwsh.exe", [
-  "-NoProfile", "-NonInteractive", "-Command",
-  "$root=$env:VC_ROOT; $d=Get-ChildItem -LiteralPath $root -Directory | Where-Object { $_.Name -match '^14\\.\\d+\\.\\d+$' } | Sort-Object { [version]$_.Name } -Descending | ForEach-Object { Join-Path $_.FullName 'x64/Microsoft.VC143.CRT' } | Where-Object { Test-Path $_ } | Select-Object -First 1; if(-not $d){exit 3}; $d",
-], { encoding: "utf8", windowsHide: true, env: { ...process.env, VC_ROOT: redistRoot } }).trim();
-
-const vcDlls = ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll"];
-const vcManifest = [];
-for (const name of vcDlls) {
-  const source = join(redistPath, name);
-  if (!existsSync(source)) throw new Error(`Required Visual C++ runtime file is missing: ${source}`);
-  const details = JSON.parse(execFileSync("pwsh.exe", [
-    "-NoProfile", "-NonInteractive", "-Command",
-    "$p=$env:VC_DLL; $s=Get-AuthenticodeSignature -LiteralPath $p; $i=Get-Item -LiteralPath $p; [pscustomobject]@{status=$s.Status.ToString(); signer=$s.SignerCertificate.Subject; version=$i.VersionInfo.FileVersion} | ConvertTo-Json -Compress",
-  ], { encoding: "utf8", windowsHide: true, env: { ...process.env, VC_DLL: source } }));
-  if (details.status !== "Valid" || !details.signer.includes("Microsoft Corporation")) {
-    throw new Error(`Authenticode validation failed for ${source}: ${details.status} ${details.signer}`);
-  }
-  if (Number(details.version.split(".")[0]) < 14) throw new Error(`Unsupported VC runtime version ${details.version}`);
-  const data = await readFile(source);
-  await copyFile(source, join(runtimeDir, name));
-  vcManifest.push({ name, bytes: data.length, sha256: sha256(data), version: details.version, signer: details.signer });
+for (const target of targets.slice(3)) {
+  await copyVerified(join(ortLib, basename(target.path)), target.path, target.sha256, target.bytes);
 }
 
-for (const name of ["PaddleOCR-LICENSE.txt", "ONNXRuntime-LICENSE.txt", "ONNXRuntime-ThirdPartyNotices.txt", "APACHE-2.0.txt", "VC-RUNTIME-NOTICE.md"]) {
+for (const name of licenseNames) {
   await copyFile(join(toolsDir, "ocr", "licenses", name), join(licenseDir, name));
 }
 
-const generated = {
-  schema: 1,
-  sourceManifest: spec,
-  visualCppRuntime: {
-    note: "App-local retail DLLs copied from the licensed Visual Studio Build Tools REDIST directory; bytes depend on the installed toolset and are recorded here rather than claimed as pinned downloads.",
-    sourceKind: "Visual Studio Build Tools VC143 x64 REDIST",
-    toolsetVersion: basename(dirname(dirname(redistPath))),
-    files: vcManifest,
-  },
-};
-await writeFile(join(resourceDir, "manifest.generated.json"), `${JSON.stringify(generated, null, 2)}\n`);
-console.log(`OCR resources prepared: ORT ${spec.versions.onnxRuntime}, PP-OCRv5 det+eslav rec, VC ${vcManifest[0].version}`);
+await writeFile(
+  generatedPath,
+  `${JSON.stringify({ schema: 1, sourceManifest: spec }, null, 2)}\n`,
+);
+console.log(
+  `OCR resources prepared: ORT ${spec.versions.onnxRuntime}, PP-OCRv5 det+eslav rec (${Date.now() - started} ms)`,
+);
